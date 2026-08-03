@@ -42,6 +42,10 @@ import { isWindows } from "@/lib/platform";
 import { isUpdateAvailable } from "@/lib/version";
 import { ToolUpgradeConfirmDialog } from "./ToolUpgradeConfirmDialog";
 import { ToolInstallRow } from "./ToolInstallRow";
+import {
+  RELAY_STATION,
+  RELAY_STATION_UPDATES_ENABLED,
+} from "@/config/relayStation";
 
 interface AboutSectionProps {
   isPortable: boolean;
@@ -428,28 +432,12 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
 
   const handleOpenReleaseNotes = useCallback(async () => {
     try {
-      const targetVersion = updateInfo?.availableVersion ?? version ?? "";
-      const displayVersion = targetVersion.startsWith("v")
-        ? targetVersion
-        : targetVersion
-          ? `v${targetVersion}`
-          : "";
-
-      if (!displayVersion) {
-        await settingsApi.openExternal(
-          "https://github.com/farion1231/cc-switch/releases",
-        );
-        return;
-      }
-
-      await settingsApi.openExternal(
-        `https://github.com/farion1231/cc-switch/releases/tag/${displayVersion}`,
-      );
+      await settingsApi.openExternal(RELAY_STATION.websiteUrl);
     } catch (error) {
       console.error("[AboutSection] Failed to open release notes", error);
       toast.error(t("settings.openReleaseNotesFailed"));
     }
-  }, [t, updateInfo?.availableVersion, version]);
+  }, [t]);
 
   const handleCheckUpdate = useCallback(async () => {
     if (hasUpdate) {
@@ -836,9 +824,13 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
           <div className="flex items-center gap-8">
             <div className="flex flex-col items-center gap-2">
               <div className="flex items-center gap-2">
-                <img src={appIcon} alt="CC Switch" className="h-5 w-5" />
+                <img
+                  src={appIcon}
+                  alt={RELAY_STATION.name}
+                  className="h-5 w-5"
+                />
                 <h4 className="text-lg font-semibold text-foreground">
-                  CC Switch
+                  {RELAY_STATION.name}
                 </h4>
               </div>
               <div className="flex items-center gap-2">
@@ -867,71 +859,75 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => settingsApi.openExternal("https://ccswitch.io")}
+              onClick={() => settingsApi.openExternal(RELAY_STATION.websiteUrl)}
               className="h-8 gap-1.5 text-xs"
             >
               <Globe className="h-3.5 w-3.5" />
               {t("settings.officialWebsite")}
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                settingsApi.openExternal(
-                  "https://github.com/farion1231/cc-switch",
-                )
-              }
-              className="h-8 gap-1.5 text-xs"
-            >
-              <Github className="h-3.5 w-3.5" />
-              {t("settings.github")}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleOpenReleaseNotes}
-              className="h-8 gap-1.5 text-xs"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              {t("settings.releaseNotes")}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleCheckUpdate}
-              disabled={isChecking || isDownloading}
-              className="h-8 gap-1.5 text-xs"
-            >
-              {isDownloading ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  {t("settings.updating")}
-                </>
-              ) : hasUpdate ? (
-                <>
-                  <Download className="h-3.5 w-3.5" />
-                  {t("settings.updateTo", {
-                    version: updateInfo?.availableVersion ?? "",
-                  })}
-                </>
-              ) : isChecking ? (
-                <>
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                  {t("settings.checking")}
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  {t("settings.checkForUpdates")}
-                </>
-              )}
-            </Button>
+            {RELAY_STATION_UPDATES_ENABLED && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    settingsApi.openExternal(
+                      "https://github.com/farion1231/cc-switch",
+                    )
+                  }
+                  className="h-8 gap-1.5 text-xs"
+                >
+                  <Github className="h-3.5 w-3.5" />
+                  {t("settings.github")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleOpenReleaseNotes}
+                  className="h-8 gap-1.5 text-xs"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  {t("settings.releaseNotes")}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleCheckUpdate}
+                  disabled={isChecking || isDownloading}
+                  className="h-8 gap-1.5 text-xs"
+                >
+                  {isDownloading ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      {t("settings.updating")}
+                    </>
+                  ) : hasUpdate ? (
+                    <>
+                      <Download className="h-3.5 w-3.5" />
+                      {t("settings.updateTo", {
+                        version: updateInfo?.availableVersion ?? "",
+                      })}
+                    </>
+                  ) : isChecking ? (
+                    <>
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      {t("settings.checking")}
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      {t("settings.checkForUpdates")}
+                    </>
+                  )}
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
-        {hasUpdate && updateInfo && (
+        {RELAY_STATION_UPDATES_ENABLED && hasUpdate && updateInfo && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}

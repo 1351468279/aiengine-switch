@@ -81,6 +81,10 @@ import { DeepLinkImportDialog } from "@/components/DeepLinkImportDialog";
 import { FirstRunNoticeDialog } from "@/components/FirstRunNoticeDialog";
 import { AgentsPanel } from "@/components/agents/AgentsPanel";
 import { UniversalProviderPanel } from "@/components/universal";
+import {
+  RELAY_STATION,
+  RELAY_STATION_UPDATES_ENABLED,
+} from "@/config/relayStation";
 import { McpIcon } from "@/components/BrandIcons";
 import { Button } from "@/components/ui/button";
 import { SessionManagerPage } from "@/components/sessions/SessionManagerPage";
@@ -1193,7 +1197,7 @@ function App() {
               <div className="flex items-center gap-2">
                 <div className="relative inline-flex items-center">
                   <a
-                    href="https://ccswitch.io"
+                    href={RELAY_STATION.websiteUrl}
                     target="_blank"
                     rel="noreferrer"
                     className={cn(
@@ -1203,7 +1207,7 @@ function App() {
                         : "text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300",
                     )}
                   >
-                    CC Switch
+                    {RELAY_STATION.name}
                   </a>
                 </div>
                 <Button
@@ -1218,12 +1222,14 @@ function App() {
                 >
                   <Settings className="w-4 h-4" />
                 </Button>
-                <UpdateBadge
-                  onClick={() => {
-                    setSettingsDefaultTab("about");
-                    setCurrentView("settings");
-                  }}
-                />
+                {RELAY_STATION_UPDATES_ENABLED && (
+                  <UpdateBadge
+                    onClick={() => {
+                      setSettingsDefaultTab("about");
+                      setCurrentView("settings");
+                    }}
+                  />
+                )}
                 {isCurrentAppTakeoverActive && (
                   <Button
                     variant="ghost"

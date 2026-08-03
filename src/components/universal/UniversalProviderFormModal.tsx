@@ -17,6 +17,7 @@ import {
   type UniversalProviderPreset,
 } from "@/config/universalProviderPresets";
 import { deepClone } from "@/utils/deepClone";
+import { RELAY_STATION } from "@/config/relayStation";
 
 interface UniversalProviderFormModalProps {
   isOpen: boolean;
@@ -67,9 +68,9 @@ export function UniversalProviderFormModal({
     if (editingProvider) {
       // 编辑模式：加载现有数据
       setName(editingProvider.name);
-      setBaseUrl(editingProvider.baseUrl);
+      setBaseUrl(RELAY_STATION.baseUrl);
       setApiKey(editingProvider.apiKey);
-      setWebsiteUrl(editingProvider.websiteUrl || "");
+      setWebsiteUrl(RELAY_STATION.websiteUrl);
       setNotes(editingProvider.notes || "");
       setClaudeEnabled(editingProvider.apps.claude);
       setCodexEnabled(editingProvider.apps.codex);
@@ -86,7 +87,7 @@ export function UniversalProviderFormModal({
       const defaultPreset = initialPreset || universalProviderPresets[0];
       setSelectedPreset(defaultPreset);
       setName(defaultPreset.name);
-      setBaseUrl("");
+      setBaseUrl(RELAY_STATION.baseUrl);
       setApiKey("");
       setWebsiteUrl(defaultPreset.websiteUrl || "");
       setNotes("");
@@ -416,7 +417,8 @@ requires_openai_auth = true`;
               id="baseUrl"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder="https://api.example.com"
+              placeholder={RELAY_STATION.baseUrl}
+              readOnly
             />
           </div>
 
