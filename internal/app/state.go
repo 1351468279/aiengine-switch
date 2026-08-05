@@ -19,6 +19,14 @@ type FieldState struct {
 	Installed StoredValue `json:"installed"`
 }
 
+type ManagedFileState struct {
+	Path            string                `json:"path"`
+	ConfigExisted   bool                  `json:"config_existed"`
+	BackupPath      string                `json:"backup_path,omitempty"`
+	Fields          map[string]FieldState `json:"fields,omitempty"`
+	InstalledSHA256 string                `json:"installed_sha256,omitempty"`
+}
+
 type ToolState struct {
 	ConfigPath      string                `json:"config_path"`
 	CredentialPath  string                `json:"credential_path"`
@@ -28,6 +36,7 @@ type ToolState struct {
 	OriginalBlock   string                `json:"original_block,omitempty"`
 	OriginalBlockOK bool                  `json:"original_block_existed"`
 	InstalledBlock  string                `json:"installed_block,omitempty"`
+	Files           []ManagedFileState    `json:"files,omitempty"`
 }
 
 type State struct {

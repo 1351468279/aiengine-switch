@@ -28,6 +28,9 @@ func TestResolvePathsUsesAiEngineNamesForFreshInstall(t *testing.T) {
 	if paths.Binary != filepath.Join(home, ".aiengine-setup", "bin", "aiengine-setup") {
 		t.Fatalf("Binary = %q", paths.Binary)
 	}
+	if paths.DesktopProfile != "" {
+		t.Fatalf("Linux should not resolve a Claude Desktop profile: %q", paths.DesktopProfile)
+	}
 }
 
 func TestResolvePathsReusesLegacyState(t *testing.T) {
@@ -73,5 +76,31 @@ func TestResolvePathsPrefersAiEngineOverrides(t *testing.T) {
 	}
 	if paths.BaseDir != preferredBase || paths.Binary != preferredBinary {
 		t.Fatalf("AiEngine overrides did not win: %#v", paths)
+	}
+}
+
+func TestWindowsClaudeDirPrefersExactThenSortedFallback(t *testing.T) {
+	local := t.TempDir()
+	for _, name := range []string{"Claude-z", "Claude-a", "Claude-3p-z", "Claude-3p-a"} {
+		if err := os.Mkdir(filepath.Join(local, name), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := windowsClaudeDir(local, false); got != filepath.Join(local, "Claude-a") {
+		t.Fatalf("normal fallback = %q", got)
+	}
+	if got := windowsClaudeDir(local, true); got != filepath.Join(local, "Claude-3p-a") {
+		t.Fatalf("3P fallback = %q", got)
+	}
+	for _, name := range []string{"Claude", "Claude-3p"} {
+		if err := os.Mkdir(filepath.Join(local, name), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := windowsClaudeDir(local, false); got != filepath.Join(local, "Claude") {
+		t.Fatalf("normal exact path = %q", got)
+	}
+	if got := windowsClaudeDir(local, true); got != filepath.Join(local, "Claude-3p") {
+		t.Fatalf("3P exact path = %q", got)
 	}
 }

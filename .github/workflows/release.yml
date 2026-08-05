@@ -1,4 +1,4 @@
-name: Release AiEngine CLI Setup
+name: Release AiEngine Setup
 
 on:
   push:
@@ -62,7 +62,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${{ github.ref_name }}" \
-            --title "AiEngine CLI Setup ${{ github.ref_name }}" \
+            --title "AiEngine Setup ${{ github.ref_name }}" \
             --generate-notes \
             dist/aiengine-setup_*.tar.gz \
             dist/aiengine-setup_*.zip \

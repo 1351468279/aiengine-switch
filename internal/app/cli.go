@@ -72,7 +72,7 @@ func newFlagSet(name string) *flag.FlagSet {
 func parseInstallOptions(args []string) (commonOptions, error) {
 	set := newFlagSet("install")
 	var options commonOptions
-	set.StringVar(&options.tools, "tools", "auto", "auto|claude|codex")
+	set.StringVar(&options.tools, "tools", "auto", "auto|claude|claude-desktop|codex")
 	set.BoolVar(&options.yes, "yes", false, "跳过确认")
 	set.BoolVar(&options.tokenStdin, "token-stdin", false, "从标准输入读取密钥")
 	set.BoolVar(&options.dryRun, "dry-run", false, "只显示计划")
@@ -99,7 +99,7 @@ func parseDoctorOptions(args []string) (commonOptions, error) {
 func parseUninstallOptions(args []string) (commonOptions, error) {
 	set := newFlagSet("uninstall")
 	var options commonOptions
-	set.StringVar(&options.tools, "tools", "all", "all|claude|codex")
+	set.StringVar(&options.tools, "tools", "all", "all|claude|claude-desktop|codex")
 	set.BoolVar(&options.force, "force", false, "覆盖冲突并恢复原值")
 	set.BoolVar(&options.dryRun, "dry-run", false, "只显示计划")
 	if err := set.Parse(args); err != nil || set.NArg() != 0 {
@@ -109,16 +109,16 @@ func parseUninstallOptions(args []string) (commonOptions, error) {
 }
 
 func printUsage(writer io.Writer) {
-	fmt.Fprintln(writer, `AiEngine CLI Setup - 配置 Claude Code 或 Codex 接入 AiEngine API
+	fmt.Fprintln(writer, `AiEngine Setup - 配置 Claude Code、Claude Desktop 或 Codex 接入 AiEngine API
 
 用法:
-  aiengine-setup install [--tools auto|claude|codex] [--token-stdin] [--dry-run]
+  aiengine-setup install [--tools auto|claude|claude-desktop|codex] [--token-stdin] [--dry-run]
   aiengine-setup doctor [--skip-api-check]
-  aiengine-setup uninstall [--tools all|claude|codex] [--force] [--dry-run]
+  aiengine-setup uninstall [--tools all|claude|claude-desktop|codex] [--force] [--dry-run]
   aiengine-setup version
 
 每次安装只配置一个客户端；再次运行可添加另一个客户端或轮换对应密钥。
-安装器只配置已安装的 CLI，不会安装 Claude Code 或 Codex。`)
+安装器不会安装客户端。Claude Desktop 3P 接入仅支持 Windows 和 macOS。`)
 }
 
 func detectInstallTool(selection string) (string, error) {
@@ -132,8 +132,13 @@ func detectInstallTool(selection string) (string, error) {
 			return "", fmt.Errorf("未检测到 %s，请先安装该 CLI", selection)
 		}
 		return selection, nil
+	case desktopTool:
+		if err := requireClaudeDesktopSupported(); err != nil {
+			return "", err
+		}
+		return selection, nil
 	case "all":
-		return "", fmt.Errorf("安装时一次只能配置一个客户端，请使用 --tools claude 或 --tools codex")
+		return "", fmt.Errorf("安装时一次只能配置一个客户端，请明确指定 --tools")
 	case "auto":
 		var found []string
 		for _, tool := range []string{"codex", "claude"} {
@@ -141,46 +146,63 @@ func detectInstallTool(selection string) (string, error) {
 				found = append(found, tool)
 			}
 		}
+		if paths, err := ResolvePaths(); err == nil && claudeDesktopDetected(paths) {
+			found = append(found, desktopTool)
+		}
 		switch len(found) {
 		case 0:
-			return "", fmt.Errorf("未检测到 Claude Code 或 Codex，请先至少安装一个 CLI")
+			return "", fmt.Errorf("未检测到 Claude Code、Claude Desktop 或 Codex；请先安装客户端，Desktop 用户也可明确使用 --tools claude-desktop")
 		case 1:
 			return found[0], nil
 		default:
-			return promptInstallTool()
+			return promptInstallTool(found)
 		}
 	default:
-		return "", fmt.Errorf("--tools 必须是 auto、claude 或 codex")
+		return "", fmt.Errorf("--tools 必须是 auto、claude、claude-desktop 或 codex")
 	}
 }
 
-func promptInstallTool() (string, error) {
+func promptInstallTool(found []string) (string, error) {
 	terminal, err := openTerminalInput()
 	if err != nil {
-		return "", fmt.Errorf("检测到 Claude Code 和 Codex；无法打开交互终端，请使用 --tools claude 或 --tools codex")
+		return "", fmt.Errorf("检测到多个客户端但无法打开交互终端；请使用 --tools 明确指定")
 	}
 	defer terminal.Close()
-	return promptInstallToolFrom(terminal, os.Stdout)
+	return promptInstallToolFrom(terminal, os.Stdout, found)
 }
 
-func promptInstallToolFrom(input io.Reader, output io.Writer) (string, error) {
+func promptInstallToolFrom(input io.Reader, output io.Writer, found []string) (string, error) {
 	fmt.Fprintln(output, "检测到多个客户端，请选择本次要配置的客户端：")
-	fmt.Fprintln(output, "  1) Codex")
-	fmt.Fprintln(output, "  2) Claude Code")
+	for index, tool := range found {
+		fmt.Fprintf(output, "  %d) %s\n", index+1, toolDisplayName(tool))
+	}
 	reader := bufio.NewReader(input)
 	for {
-		fmt.Fprint(output, "请输入 1 或 2: ")
+		fmt.Fprintf(output, "请输入 1-%d: ", len(found))
 		line, readErr := reader.ReadString('\n')
-		switch strings.ToLower(strings.TrimSpace(line)) {
-		case "1", "codex":
-			return "codex", nil
-		case "2", "claude":
-			return "claude", nil
+		answer := strings.ToLower(strings.TrimSpace(line))
+		for index, tool := range found {
+			if answer == fmt.Sprint(index+1) || answer == tool {
+				return tool, nil
+			}
 		}
 		if readErr != nil {
 			return "", fmt.Errorf("读取客户端选择: %w", readErr)
 		}
-		fmt.Fprintln(output, "选择无效，请输入 1 或 2。")
+		fmt.Fprintf(output, "选择无效，请输入 1-%d。\n", len(found))
+	}
+}
+
+func toolDisplayName(tool string) string {
+	switch tool {
+	case "claude":
+		return "Claude Code"
+	case desktopTool:
+		return "Claude Desktop"
+	case "codex":
+		return "Codex"
+	default:
+		return tool
 	}
 }
 
@@ -192,11 +214,11 @@ func detectUninstallTools(selection string, installed map[string]*ToolState) ([]
 	var requested []string
 	switch selection {
 	case "all":
-		requested = []string{"claude", "codex"}
-	case "claude", "codex":
+		requested = []string{"claude", desktopTool, "codex"}
+	case "claude", desktopTool, "codex":
 		requested = []string{selection}
 	default:
-		return nil, fmt.Errorf("--tools 必须是 all、claude 或 codex")
+		return nil, fmt.Errorf("--tools 必须是 all、claude、claude-desktop 或 codex")
 	}
 	var result []string
 	for _, tool := range requested {

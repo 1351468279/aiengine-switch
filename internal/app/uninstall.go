@@ -34,6 +34,16 @@ func runUninstall(options commonOptions) error {
 			data, snapshot, conflicts, remove, err = prepareClaudeUninstall(paths, state.Tools[tool], options.force)
 		case "codex":
 			data, snapshot, conflicts, remove, err = prepareCodexUninstall(state.Tools[tool], options.force)
+		case desktopTool:
+			desktopPending, desktopConflicts, desktopErr := prepareClaudeDesktopUninstall(state.Tools[tool], options.force)
+			if desktopErr != nil {
+				return desktopErr
+			}
+			if len(desktopConflicts) > 0 {
+				return fmt.Errorf("%s 配置在安装后被修改，未覆盖这些文件或字段: %s；确认要恢复安装前状态时可使用 --force", tool, strings.Join(desktopConflicts, ", "))
+			}
+			pending = append(pending, desktopPending...)
+			continue
 		}
 		if err != nil {
 			return err

@@ -40,9 +40,12 @@ func runInstall(options commonOptions, version string) error {
 		}
 	}
 
-	fmt.Printf("将配置: %s\n", tool)
+	fmt.Printf("将配置: %s\n", toolDisplayName(tool))
 	fmt.Printf("API 地址: %s\n", RelayV1URL)
 	fmt.Printf("安装目录: %s\n", paths.BaseDir)
+	if tool == desktopTool {
+		fmt.Println("请先完全退出 Claude Desktop；配置完成后重新打开。")
+	}
 	if options.dryRun {
 		fmt.Println("演练完成：未读取密钥，也未修改任何文件。")
 		return nil
@@ -67,6 +70,11 @@ func runInstall(options commonOptions, version string) error {
 		if _, err := validateModels(token, []string{tool}); err != nil {
 			return err
 		}
+		if tool == desktopTool {
+			if err := validateDesktopMessages(token); err != nil {
+				return err
+			}
+		}
 		fmt.Println("API 密钥和模型权限验证通过。")
 	} else {
 		fmt.Println("已按要求跳过 API 验证。")
@@ -83,8 +91,17 @@ func runInstall(options commonOptions, version string) error {
 		rollbackFiles(pending)
 		return fmt.Errorf("安装失败，已尝试恢复本次改动: %w", err)
 	}
+	if tool == desktopTool {
+		if err := secureCredential(paths.DesktopProfile); err != nil {
+			rollbackFiles(pending)
+			return fmt.Errorf("安装失败，已尝试恢复本次改动: %w", err)
+		}
+	}
 	_ = nextState
-	fmt.Printf("配置完成。运行 %s doctor 可检查接入状态。\n", paths.Binary)
+	if tool == desktopTool {
+		fmt.Println("Claude Desktop 配置完成。现在重新打开应用，并在模型菜单中选择 AiEngine 的 Claude 模型。")
+	}
+	fmt.Printf("运行 %s doctor 可检查接入状态。\n", paths.Binary)
 	return nil
 }
 
@@ -156,6 +173,14 @@ func prepareInstallFiles(paths Paths, state *State, tool, token, version string)
 		pending = append(pending, pendingFile{path: paths.CodexConfig, data: data, mode: mode, snapshot: snapshot})
 		toolState.CredentialPath = credentialPath
 		state.Tools["codex"] = toolState
+	}
+	if tool == desktopTool {
+		desktopPending, toolState, err := prepareClaudeDesktopInstall(paths, state.Tools[desktopTool], token, now)
+		if err != nil {
+			return nil, nil, err
+		}
+		pending = append(pending, desktopPending...)
+		state.Tools[desktopTool] = toolState
 	}
 	state.SchemaVersion = stateSchema
 	state.InstallerVersion = version

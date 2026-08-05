@@ -8,7 +8,7 @@ import (
 
 func TestPromptInstallToolRequiresOneClient(t *testing.T) {
 	var output bytes.Buffer
-	tool, err := promptInstallToolFrom(strings.NewReader("\ninvalid\n2\n"), &output)
+	tool, err := promptInstallToolFrom(strings.NewReader("\ninvalid\n2\n"), &output, []string{"codex", "claude", desktopTool})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -31,7 +31,7 @@ func runDoctor(options commonOptions, version string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("AiEngine CLI Setup %s 诊断\n", version)
+	fmt.Printf("%s %s 诊断\n", ProductName, version)
 	report := &doctorReport{}
 	state, err := loadState(paths.State)
 	if err != nil {
@@ -77,7 +77,15 @@ func runDoctor(options commonOptions, version string) error {
 			report.ok("%s 凭据文件可用，%s", name, detail)
 		}
 
-		if versionText, err := toolVersion(name); err != nil {
+		if name == desktopTool {
+			if !claudeDesktopSupported() {
+				report.fail("Claude Desktop 配置不能在当前系统使用")
+			} else if !claudeDesktopDetected(paths) {
+				report.warn("未检测到 Claude Desktop 应用；配置文件仍会保留")
+			} else {
+				report.ok("已检测到 Claude Desktop")
+			}
+		} else if versionText, err := toolVersion(name); err != nil {
 			report.fail("%s CLI 不可用: %v", name, err)
 		} else {
 			report.ok("%s CLI: %s", name, versionText)
@@ -87,12 +95,20 @@ func runDoctor(options commonOptions, version string) error {
 			checkClaudeDoctor(report, toolState)
 		case "codex":
 			checkCodexDoctor(report, toolState)
+		case desktopTool:
+			checkClaudeDesktopDoctor(report, toolState, token)
 		default:
 			report.warn("安装状态包含未知工具 %s", name)
 		}
-		if !options.skipAPICheck && token != "" && (name == "claude" || name == "codex") {
+		if !options.skipAPICheck && token != "" && (name == "claude" || name == desktopTool || name == "codex") {
 			if _, err := validateModels(token, []string{name}); err != nil {
 				report.fail("%s API 验证失败: %v", name, err)
+			} else if name == desktopTool {
+				if err := validateDesktopMessages(token); err != nil {
+					report.fail("Claude Desktop Messages API 验证失败: %v", err)
+				} else {
+					report.ok("Claude Desktop API 密钥、模型和流式 Messages 接口均可用")
+				}
 			} else {
 				report.ok("%s API 密钥有效，所需模型均可用", name)
 			}

@@ -1,16 +1,19 @@
 package app
 
 const (
-	ProductName      = "AiEngine CLI Setup"
-	RelayRootURL     = "https://modelapi.aiaiaiaiai.cloud"
-	RelayV1URL       = RelayRootURL + "/v1"
-	ClaudeModel      = "claude-sonnet-5"
-	ClaudeOpusModel  = "claude-opus-5"
-	ClaudeHaikuModel = "claude-haiku-4-5-20251001"
-	CodexModel       = "gpt-5.6-sol"
-	stateSchema      = 2
-	codexProviderID  = "aiengine"
-	legacyProviderID = "aiare"
+	ProductName        = "AiEngine Setup"
+	RelayRootURL       = "https://modelapi.aiaiaiaiai.cloud"
+	RelayV1URL         = RelayRootURL + "/v1"
+	ClaudeModel        = "claude-sonnet-5"
+	ClaudeOpusModel    = "claude-opus-5"
+	ClaudeHaikuModel   = "claude-haiku-4-5-20251001"
+	CodexModel         = "gpt-5.6-sol"
+	stateSchema        = 2
+	codexProviderID    = "aiengine"
+	legacyProviderID   = "aiare"
+	desktopTool        = "claude-desktop"
+	desktopProfileID   = "a1e00000-0000-4000-8000-000000000001"
+	desktopProfileName = "AiEngine"
 )
 
 var managedClaudeFields = []string{
