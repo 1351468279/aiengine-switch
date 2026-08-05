@@ -2,6 +2,8 @@
 
 为 AiEngine API 中转站配置现有的 Claude Code 或 Codex CLI。用户只需运行一条在线命令并输入自己的 API 密钥，不需要安装桌面切换工具。
 
+第一次接入请阅读：[Windows、macOS、Linux、WSL 保姆级用户教程](docs/user-guide.md)。教程包含客户端安装、密钥选择、双客户端配置、验证和常见报错处理。
+
 ## 一键接入
 
 开始前请先安装至少一个目标 CLI，并在 AiEngine 控制台创建 API 密钥。
