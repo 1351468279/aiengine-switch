@@ -29,7 +29,7 @@ wire_api = "responses"
 		t.Fatal(err)
 	}
 	installedText := string(installed)
-	for _, wanted := range []string{"# keep this comment", "[model_providers.other]", "[model_providers.aiare.auth]", CodexModel} {
+	for _, wanted := range []string{"# keep this comment", "[model_providers.other]", "[model_providers.aiare.auth]", `args = ["credential", "print", "codex"]`, CodexModel} {
 		if !strings.Contains(installedText, wanted) {
 			t.Fatalf("generated config does not contain %q:\n%s", wanted, installedText)
 		}

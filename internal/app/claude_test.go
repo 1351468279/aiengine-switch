@@ -12,16 +12,18 @@ func testPaths(t *testing.T) Paths {
 	t.Helper()
 	root := t.TempDir()
 	return Paths{
-		Home:           root,
-		BaseDir:        filepath.Join(root, ".aiare-setup"),
-		BinDir:         filepath.Join(root, ".aiare-setup", "bin"),
-		Binary:         filepath.Join(root, ".aiare-setup", "bin", "aiare-setup"),
-		Credential:     filepath.Join(root, ".aiare-setup", "credentials", "token"),
-		State:          filepath.Join(root, ".aiare-setup", "state.json"),
-		BackupDir:      filepath.Join(root, ".aiare-setup", "backups"),
-		ClaudeSettings: filepath.Join(root, ".claude", "settings.json"),
-		CodexConfig:    filepath.Join(root, ".codex", "config.toml"),
-		CodexAuth:      filepath.Join(root, ".codex", "auth.json"),
+		Home:             root,
+		BaseDir:          filepath.Join(root, ".aiare-setup"),
+		BinDir:           filepath.Join(root, ".aiare-setup", "bin"),
+		Binary:           filepath.Join(root, ".aiare-setup", "bin", "aiare-setup"),
+		Credential:       filepath.Join(root, ".aiare-setup", "credentials", "token"),
+		ClaudeCredential: filepath.Join(root, ".aiare-setup", "credentials", "claude-token"),
+		CodexCredential:  filepath.Join(root, ".aiare-setup", "credentials", "codex-token"),
+		State:            filepath.Join(root, ".aiare-setup", "state.json"),
+		BackupDir:        filepath.Join(root, ".aiare-setup", "backups"),
+		ClaudeSettings:   filepath.Join(root, ".claude", "settings.json"),
+		CodexConfig:      filepath.Join(root, ".codex", "config.toml"),
+		CodexAuth:        filepath.Join(root, ".codex", "auth.json"),
 	}
 }
 
@@ -52,6 +54,9 @@ func TestClaudeInstallAndUninstallPreserveUnrelatedSettings(t *testing.T) {
 	var changed map[string]any
 	if err := json.Unmarshal(installed, &changed); err != nil {
 		t.Fatal(err)
+	}
+	if changed["apiKeyHelper"] != shellCommand(paths.Binary, "credential", "print", "claude") {
+		t.Fatalf("Claude apiKeyHelper does not select the Claude credential: %v", changed["apiKeyHelper"])
 	}
 	changed["added_after_install"] = true
 	changedData, _ := json.Marshal(changed)

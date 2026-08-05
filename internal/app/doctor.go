@@ -52,20 +52,6 @@ func runDoctor(options commonOptions, version string) error {
 		report.ok("安装器路径: %s", state.BinaryPath)
 	}
 
-	tokenData, err := os.ReadFile(state.CredentialPath)
-	var token string
-	if err != nil {
-		report.fail("凭据文件不可读: %s", state.CredentialPath)
-	} else if token, err = validateToken(string(tokenData)); err != nil {
-		report.fail("凭据文件无效: %v", err)
-	} else {
-		if detail, err := checkCredentialSecurity(state.CredentialPath); err != nil {
-			report.fail("凭据权限不安全: %v", err)
-		} else {
-			report.ok("凭据文件可用，%s", detail)
-		}
-	}
-
 	if conflicts := claudeEnvironmentConflicts(); len(conflicts) > 0 && state.Tools["claude"] != nil {
 		report.fail("环境变量会覆盖 Claude 配置: %s", strings.Join(conflicts, ", "))
 	}
@@ -76,6 +62,21 @@ func runDoctor(options commonOptions, version string) error {
 	}
 	sort.Strings(toolNames)
 	for _, name := range toolNames {
+		toolState := state.Tools[name]
+		credentialPath := credentialPathForState(state, name, paths.credentialForTool(name))
+		var token string
+		if credentialPath == "" {
+			report.fail("%s 凭据路径不存在", name)
+		} else if tokenData, readErr := os.ReadFile(credentialPath); readErr != nil {
+			report.fail("%s 凭据文件不可读: %s", name, credentialPath)
+		} else if token, err = validateToken(string(tokenData)); err != nil {
+			report.fail("%s 凭据文件无效: %v", name, err)
+		} else if detail, securityErr := checkCredentialSecurity(credentialPath); securityErr != nil {
+			report.fail("%s 凭据权限不安全: %v", name, securityErr)
+		} else {
+			report.ok("%s 凭据文件可用，%s", name, detail)
+		}
+
 		if versionText, err := toolVersion(name); err != nil {
 			report.fail("%s CLI 不可用: %v", name, err)
 		} else {
@@ -83,21 +84,22 @@ func runDoctor(options commonOptions, version string) error {
 		}
 		switch name {
 		case "claude":
-			checkClaudeDoctor(report, state.Tools[name])
+			checkClaudeDoctor(report, toolState)
 		case "codex":
-			checkCodexDoctor(report, state.Tools[name])
+			checkCodexDoctor(report, toolState)
 		default:
 			report.warn("安装状态包含未知工具 %s", name)
 		}
+		if !options.skipAPICheck && token != "" && (name == "claude" || name == "codex") {
+			if _, err := validateModels(token, []string{name}); err != nil {
+				report.fail("%s API 验证失败: %v", name, err)
+			} else {
+				report.ok("%s API 密钥有效，所需模型均可用", name)
+			}
+		}
 	}
 
-	if !options.skipAPICheck && token != "" {
-		if _, err := validateModels(token, toolNames); err != nil {
-			report.fail("API 验证失败: %v", err)
-		} else {
-			report.ok("API 密钥有效，所需模型均可用")
-		}
-	} else if options.skipAPICheck {
+	if options.skipAPICheck {
 		report.warn("已跳过 API 验证")
 	}
 	if state.Tools["codex"] != nil {

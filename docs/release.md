@@ -3,13 +3,13 @@
 ## 创建发行版
 
 1. 确认 `go test ./...` 和跨平台构建通过。
-2. 创建语义化标签，例如 `setup-v1.0.0`。
+2. 创建语义化标签，例如 `setup-v1.1.0`。
 3. 推送标签，等待 `Release AIARE CLI Setup` 工作流完成。
 4. 检查 GitHub Release 包含六个平台压缩包、两个引导脚本、`CHECKSUMS.txt` 和 `latest.json`。
 
 ```sh
-git tag -a setup-v1.0.0 -m "AIARE CLI Setup 1.0.0"
-git push origin setup-v1.0.0
+git tag -a setup-v1.1.0 -m "AIARE CLI Setup 1.1.0"
+git push origin setup-v1.1.0
 gh run watch
 ```
 
@@ -18,7 +18,7 @@ gh run watch
 在 NewAPI 所在服务器的仓库目录运行：
 
 ```sh
-sudo ./deploy/publish.sh setup-v1.0.0
+sudo ./deploy/publish.sh setup-v1.1.0
 ```
 
 固定路径：
@@ -32,7 +32,7 @@ sudo ./deploy/publish.sh setup-v1.0.0
 ## 验证
 
 ```sh
-curl -fsS https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --dry-run
+curl -fsS https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools codex --dry-run
 curl -fsS https://modelapi.aiaiaiaiai.cloud/aiare-setup/current/latest.json
 curl -fsS https://modelapi.aiaiaiaiai.cloud/aiare-setup/current/CHECKSUMS.txt
 ```
@@ -44,7 +44,7 @@ curl -fsS https://modelapi.aiaiaiaiai.cloud/aiare-setup/current/CHECKSUMS.txt
 重新部署上一个已发布标签即可：
 
 ```sh
-sudo ./deploy/publish.sh setup-v0.9.0
+sudo ./deploy/publish.sh setup-v1.0.2
 ```
 
 发布目录不会被覆盖或自动删除。若目标标签已部署过，可将 `current` 原子切换到对应 `releases/<tag>`，再执行 `nginx -t && nginx -s reload`。

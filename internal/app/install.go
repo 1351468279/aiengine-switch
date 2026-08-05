@@ -30,17 +30,17 @@ func runInstall(options commonOptions, version string) error {
 	if state == nil {
 		state = newState(version, paths)
 	}
-	tools, err := detectTools(options.tools, state.Tools, false)
+	tool, err := detectInstallTool(options.tools)
 	if err != nil {
 		return err
 	}
-	if containsTool(tools, "claude") {
+	if tool == "claude" {
 		if err := requireNoClaudeEnvironmentConflict(); err != nil {
 			return err
 		}
 	}
 
-	fmt.Printf("将配置: %s\n", strings.Join(tools, ", "))
+	fmt.Printf("将配置: %s\n", tool)
 	fmt.Printf("API 地址: %s\n", RelayV1URL)
 	fmt.Printf("安装目录: %s\n", paths.BaseDir)
 	if options.dryRun {
@@ -57,12 +57,14 @@ func runInstall(options commonOptions, version string) error {
 		}
 	}
 
-	token, err := readToken(options.tokenStdin, paths.Credential)
+	credentialPath := paths.credentialForTool(tool)
+	currentCredentialPath := credentialPathForState(state, tool, credentialPath)
+	token, err := readToken(options.tokenStdin, currentCredentialPath)
 	if err != nil {
 		return err
 	}
 	if !options.skipAPICheck {
-		if _, err := validateModels(token, tools); err != nil {
+		if _, err := validateModels(token, []string{tool}); err != nil {
 			return err
 		}
 		fmt.Println("API 密钥和模型权限验证通过。")
@@ -70,14 +72,14 @@ func runInstall(options commonOptions, version string) error {
 		fmt.Println("已按要求跳过 API 验证。")
 	}
 
-	pending, nextState, err := prepareInstallFiles(paths, state, tools, token, version)
+	pending, nextState, err := prepareInstallFiles(paths, state, tool, token, version)
 	if err != nil {
 		return err
 	}
 	if err := commitFiles(pending); err != nil {
 		return fmt.Errorf("安装失败，已尝试恢复本次改动: %w", err)
 	}
-	if err := secureCredential(paths.Credential); err != nil {
+	if err := secureCredential(credentialPath); err != nil {
 		rollbackFiles(pending)
 		return fmt.Errorf("安装失败，已尝试恢复本次改动: %w", err)
 	}
@@ -86,17 +88,19 @@ func runInstall(options commonOptions, version string) error {
 	return nil
 }
 
-func prepareInstallFiles(paths Paths, state *State, tools []string, token, version string) ([]pendingFile, *State, error) {
+func prepareInstallFiles(paths Paths, state *State, tool, token, version string) ([]pendingFile, *State, error) {
 	now := time.Now().UTC()
+	credentialPath := paths.credentialForTool(tool)
+	previousCredentialPath := credentialPathForState(state, tool, credentialPath)
 	stateSnapshot, err := snapshotFile(paths.State)
 	if err != nil {
 		return nil, nil, err
 	}
-	credentialSnapshot, err := snapshotFile(paths.Credential)
+	credentialSnapshot, err := snapshotFile(credentialPath)
 	if err != nil {
 		return nil, nil, err
 	}
-	pending := make([]pendingFile, 0, len(tools)+3)
+	pending := make([]pendingFile, 0, 6)
 	if !executableMatches(paths.Binary) {
 		binarySnapshot, err := snapshotFile(paths.Binary)
 		if err != nil {
@@ -112,8 +116,8 @@ func prepareInstallFiles(paths Paths, state *State, tools []string, token, versi
 		}
 		pending = append(pending, pendingFile{path: paths.Binary, data: binaryData, mode: 0o755, snapshot: binarySnapshot})
 	}
-	pending = append(pending, pendingFile{path: paths.Credential, data: []byte(token + "\n"), mode: 0o600, snapshot: credentialSnapshot})
-	if containsTool(tools, "claude") {
+	pending = append(pending, pendingFile{path: credentialPath, data: []byte(token + "\n"), mode: 0o600, snapshot: credentialSnapshot})
+	if tool == "claude" {
 		data, snapshot, toolState, err := prepareClaudeInstall(paths, state.Tools["claude"])
 		if err != nil {
 			return nil, nil, err
@@ -130,9 +134,10 @@ func prepareInstallFiles(paths Paths, state *State, tools []string, token, versi
 			mode = snapshot.mode
 		}
 		pending = append(pending, pendingFile{path: paths.ClaudeSettings, data: data, mode: mode, snapshot: snapshot})
+		toolState.CredentialPath = credentialPath
 		state.Tools["claude"] = toolState
 	}
-	if containsTool(tools, "codex") {
+	if tool == "codex" {
 		data, snapshot, toolState, err := prepareCodexInstall(paths, state.Tools["codex"])
 		if err != nil {
 			return nil, nil, err
@@ -149,13 +154,30 @@ func prepareInstallFiles(paths Paths, state *State, tools []string, token, versi
 			mode = snapshot.mode
 		}
 		pending = append(pending, pendingFile{path: paths.CodexConfig, data: data, mode: mode, snapshot: snapshot})
+		toolState.CredentialPath = credentialPath
 		state.Tools["codex"] = toolState
 	}
 	state.SchemaVersion = stateSchema
 	state.InstallerVersion = version
 	state.UpdatedAt = now
 	state.BinaryPath = paths.Binary
-	state.CredentialPath = paths.Credential
+	cleanupPaths := map[string]bool{
+		previousCredentialPath: true,
+		state.CredentialPath:   true,
+	}
+	for cleanupPath := range cleanupPaths {
+		if cleanupPath == "" || cleanupPath == credentialPath || credentialPathReferenced(state, cleanupPath) {
+			continue
+		}
+		snapshot, err := snapshotFile(cleanupPath)
+		if err != nil {
+			return nil, nil, err
+		}
+		pending = append(pending, pendingFile{path: cleanupPath, remove: true, snapshot: snapshot})
+	}
+	if state.CredentialPath != "" && !credentialPathReferenced(state, state.CredentialPath) {
+		state.CredentialPath = ""
+	}
 	stateData, err := marshalState(state)
 	if err != nil {
 		return nil, nil, err

@@ -21,6 +21,7 @@ type FieldState struct {
 
 type ToolState struct {
 	ConfigPath      string                `json:"config_path"`
+	CredentialPath  string                `json:"credential_path"`
 	ConfigExisted   bool                  `json:"config_existed"`
 	BackupPath      string                `json:"backup_path,omitempty"`
 	Fields          map[string]FieldState `json:"fields"`
@@ -35,7 +36,7 @@ type State struct {
 	InstalledAt      time.Time             `json:"installed_at"`
 	UpdatedAt        time.Time             `json:"updated_at"`
 	BinaryPath       string                `json:"binary_path"`
-	CredentialPath   string                `json:"credential_path"`
+	CredentialPath   string                `json:"credential_path,omitempty"`
 	Tools            map[string]*ToolState `json:"tools"`
 }
 
@@ -47,7 +48,6 @@ func newState(version string, paths Paths) *State {
 		InstalledAt:      now,
 		UpdatedAt:        now,
 		BinaryPath:       paths.Binary,
-		CredentialPath:   paths.Credential,
 		Tools:            make(map[string]*ToolState),
 	}
 }
@@ -64,13 +64,45 @@ func loadState(path string) (*State, error) {
 	if err := json.Unmarshal(data, &state); err != nil {
 		return nil, fmt.Errorf("安装状态损坏: %w", err)
 	}
-	if state.SchemaVersion != stateSchema {
+	if state.SchemaVersion != 1 && state.SchemaVersion != stateSchema {
 		return nil, fmt.Errorf("不支持的安装状态版本 %d", state.SchemaVersion)
 	}
 	if state.Tools == nil {
 		state.Tools = make(map[string]*ToolState)
 	}
+	for tool, toolState := range state.Tools {
+		if toolState == nil {
+			return nil, fmt.Errorf("安装状态损坏: 工具 %s 缺少状态", tool)
+		}
+		if toolState.CredentialPath == "" {
+			toolState.CredentialPath = state.CredentialPath
+		}
+	}
 	return &state, nil
+}
+
+func credentialPathForState(state *State, tool, fallback string) string {
+	if state != nil {
+		if toolState := state.Tools[tool]; toolState != nil && toolState.CredentialPath != "" {
+			return toolState.CredentialPath
+		}
+		if state.CredentialPath != "" {
+			return state.CredentialPath
+		}
+	}
+	return fallback
+}
+
+func credentialPathReferenced(state *State, path string) bool {
+	if state == nil || path == "" {
+		return false
+	}
+	for _, toolState := range state.Tools {
+		if toolState != nil && toolState.CredentialPath == path {
+			return true
+		}
+	}
+	return false
 }
 
 func storedValue(value any, exists bool) (StoredValue, error) {

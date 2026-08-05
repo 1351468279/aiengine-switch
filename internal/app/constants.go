@@ -8,7 +8,7 @@ const (
 	ClaudeOpusModel  = "claude-opus-5"
 	ClaudeHaikuModel = "claude-haiku-4-5-20251001"
 	CodexModel       = "gpt-5.6-sol"
-	stateSchema      = 1
+	stateSchema      = 2
 )
 
 var managedClaudeFields = []string{

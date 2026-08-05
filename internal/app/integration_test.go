@@ -4,6 +4,8 @@ package app
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,20 +53,34 @@ func TestInstallRerunDoctorAndUninstall(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	options := commonOptions{tools: "all", yes: true, tokenStdin: true, skipAPICheck: true}
-	if err := withTestStdin(t, "first-test-token\n", func() error {
-		return runInstall(options, "test")
+	codexOptions := commonOptions{tools: "codex", yes: true, tokenStdin: true, skipAPICheck: true}
+	if err := withTestStdin(t, "codex-test-token\n", func() error {
+		return runInstall(codexOptions, "test-codex")
 	}); err != nil {
 		t.Fatal(err)
 	}
-	assertSecretOnlyInCredential(t, paths, "first-test-token")
+	assertCredential(t, paths.CodexCredential, "codex-test-token")
+	assertMissing(t, paths.ClaudeCredential)
+	assertSecretsNotLeaked(t, paths, "codex-test-token")
 
-	if err := withTestStdin(t, "second-test-token\n", func() error {
-		return runInstall(options, "test-rerun")
+	claudeOptions := commonOptions{tools: "claude", yes: true, tokenStdin: true, skipAPICheck: true}
+	if err := withTestStdin(t, "claude-test-token\n", func() error {
+		return runInstall(claudeOptions, "test-claude")
 	}); err != nil {
 		t.Fatal(err)
 	}
-	assertSecretOnlyInCredential(t, paths, "second-test-token")
+	assertCredential(t, paths.CodexCredential, "codex-test-token")
+	assertCredential(t, paths.ClaudeCredential, "claude-test-token")
+	assertSecretsNotLeaked(t, paths, "codex-test-token", "claude-test-token")
+
+	if err := withTestStdin(t, "rotated-codex-token\n", func() error {
+		return runInstall(codexOptions, "test-rerun")
+	}); err != nil {
+		t.Fatal(err)
+	}
+	assertCredential(t, paths.CodexCredential, "rotated-codex-token")
+	assertCredential(t, paths.ClaudeCredential, "claude-test-token")
+	assertSecretsNotLeaked(t, paths, "rotated-codex-token", "claude-test-token")
 	state, err := loadState(paths.State)
 	if err != nil {
 		t.Fatal(err)
@@ -77,6 +93,23 @@ func TestInstallRerunDoctorAndUninstall(t *testing.T) {
 	if err := runDoctor(commonOptions{skipAPICheck: true}, "test-rerun"); err != nil {
 		t.Fatal(err)
 	}
+	if err := runUninstall(commonOptions{tools: "codex"}); err != nil {
+		t.Fatal(err)
+	}
+	assertMissing(t, paths.CodexCredential)
+	assertCredential(t, paths.ClaudeCredential, "claude-test-token")
+	state, err = loadState(paths.State)
+	if err != nil || state.Tools["codex"] != nil || state.Tools["claude"] == nil {
+		t.Fatalf("partial uninstall produced invalid state: state=%#v err=%v", state, err)
+	}
+	codexData, err := os.ReadFile(paths.CodexConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(codexData), "# customer comment") || !strings.Contains(string(codexData), `model = "official-model"`) {
+		t.Fatalf("Codex settings were not restored:\n%s", codexData)
+	}
+
 	if err := runUninstall(commonOptions{tools: "all"}); err != nil {
 		t.Fatal(err)
 	}
@@ -95,26 +128,136 @@ func TestInstallRerunDoctorAndUninstall(t *testing.T) {
 	if _, exists := claude["apiKeyHelper"]; exists {
 		t.Fatal("Claude apiKeyHelper remained after uninstall")
 	}
-	codexData, err := os.ReadFile(paths.CodexConfig)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(codexData), "# customer comment") || !strings.Contains(string(codexData), `model = "official-model"`) {
-		t.Fatalf("Codex settings were not restored:\n%s", codexData)
-	}
 	authData, err := os.ReadFile(paths.CodexAuth)
 	if err != nil || string(authData) != originalAuth {
 		t.Fatalf("Codex auth.json changed: data=%s err=%v", authData, err)
 	}
-	for _, removed := range []string{paths.Binary, paths.Credential, paths.State} {
-		if _, err := os.Stat(removed); !os.IsNotExist(err) {
-			t.Fatalf("managed file still exists after uninstall: %s", removed)
-		}
+	for _, removed := range []string{paths.Binary, paths.Credential, paths.ClaudeCredential, paths.CodexCredential, paths.State} {
+		assertMissing(t, removed)
 	}
 	entries, err := os.ReadDir(paths.BackupDir)
 	if err != nil || len(entries) == 0 {
 		t.Fatalf("initial backups were not retained: entries=%d err=%v", len(entries), err)
 	}
+}
+
+func TestSchemaOneSharedCredentialMigratesOneToolAtATime(t *testing.T) {
+	paths := testPaths(t)
+	if err := os.MkdirAll(filepath.Dir(paths.ClaudeSettings), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.CodexConfig), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	claudeData, _, claudeState, err := prepareClaudeInstall(paths, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	codexData, _, codexState, err := prepareCodexInstall(paths, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.ClaudeSettings, claudeData, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.CodexConfig, codexData, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.Credential), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.Credential, []byte("legacy-shared-token\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	legacyState := &State{
+		SchemaVersion:    1,
+		InstallerVersion: "1.0.2",
+		BinaryPath:       paths.Binary,
+		CredentialPath:   paths.Credential,
+		Tools: map[string]*ToolState{
+			"claude": claudeState,
+			"codex":  codexState,
+		},
+	}
+	if err := writeJSON(paths.State, legacyState, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	loaded, err := loadState(paths.State)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Tools["claude"].CredentialPath != paths.Credential || loaded.Tools["codex"].CredentialPath != paths.Credential {
+		t.Fatalf("schema 1 credential was not mapped to both tools: %#v", loaded)
+	}
+	pending, _, err := prepareInstallFiles(paths, loaded, "codex", "legacy-shared-token", "1.1.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := commitFiles(pending); err != nil {
+		t.Fatal(err)
+	}
+	assertCredential(t, paths.CodexCredential, "legacy-shared-token")
+	assertCredential(t, paths.Credential, "legacy-shared-token")
+	loaded, err = loadState(paths.State)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.SchemaVersion != 2 || loaded.Tools["codex"].CredentialPath != paths.CodexCredential || loaded.Tools["claude"].CredentialPath != paths.Credential {
+		t.Fatalf("first migration produced invalid state: %#v", loaded)
+	}
+
+	pending, _, err = prepareInstallFiles(paths, loaded, "claude", "legacy-shared-token", "1.1.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := commitFiles(pending); err != nil {
+		t.Fatal(err)
+	}
+	assertCredential(t, paths.ClaudeCredential, "legacy-shared-token")
+	assertMissing(t, paths.Credential)
+	loaded, err = loadState(paths.State)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.CredentialPath != "" || loaded.Tools["claude"].CredentialPath != paths.ClaudeCredential {
+		t.Fatalf("legacy credential was not fully retired: %#v", loaded)
+	}
+}
+
+func TestInstallValidationFailureDoesNotWriteFiles(t *testing.T) {
+	home := t.TempDir()
+	binDir := filepath.Join(home, "fake-bin")
+	if err := os.MkdirAll(binDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	writeFakeTool(t, binDir, "codex", "codex-cli test")
+	t.Setenv("HOME", home)
+	t.Setenv("AIARE_SETUP_HOME", filepath.Join(home, ".aiare-setup"))
+	t.Setenv("CODEX_HOME", filepath.Join(home, ".codex"))
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"data":[{"id":"claude-sonnet-5"}]}`))
+	}))
+	defer server.Close()
+	previousEndpoint := modelEndpoint
+	modelEndpoint = server.URL
+	t.Cleanup(func() { modelEndpoint = previousEndpoint })
+
+	err := withTestStdin(t, "codex-invalid-token\n", func() error {
+		return runInstall(commonOptions{tools: "codex", yes: true, tokenStdin: true}, "test")
+	})
+	if err == nil || !strings.Contains(err.Error(), CodexModel) {
+		t.Fatalf("expected missing Codex model error, got %v", err)
+	}
+	paths, resolveErr := ResolvePaths()
+	if resolveErr != nil {
+		t.Fatal(resolveErr)
+	}
+	assertMissing(t, paths.BaseDir)
+	assertMissing(t, paths.CodexConfig)
 }
 
 func TestClaudeUninstallTreatsDeletedConfigAsAlreadyRemoved(t *testing.T) {
@@ -160,19 +303,35 @@ func withTestStdin(t *testing.T, contents string, run func() error) error {
 	return run()
 }
 
-func assertSecretOnlyInCredential(t *testing.T, paths Paths, token string) {
+func assertCredential(t *testing.T, path, token string) {
 	t.Helper()
-	credential, err := os.ReadFile(paths.Credential)
+	credential, err := os.ReadFile(path)
 	if err != nil || strings.TrimSpace(string(credential)) != token {
-		t.Fatalf("credential was not stored correctly: err=%v", err)
+		t.Fatalf("credential %s was not stored correctly: err=%v", path, err)
 	}
+	if info, err := os.Stat(path); err != nil || info.Mode().Perm()&0o077 != 0 {
+		t.Fatalf("credential %s permissions are not private: info=%v err=%v", path, info, err)
+	}
+}
+
+func assertSecretsNotLeaked(t *testing.T, paths Paths, tokens ...string) {
+	t.Helper()
 	for _, path := range []string{paths.ClaudeSettings, paths.CodexConfig, paths.State, paths.CodexAuth} {
 		data, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if strings.Contains(string(data), token) {
-			t.Fatalf("secret leaked into %s", path)
+		for _, token := range tokens {
+			if strings.Contains(string(data), token) {
+				t.Fatalf("secret leaked into %s", path)
+			}
 		}
+	}
+}
+
+func assertMissing(t *testing.T, path string) {
+	t.Helper()
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("managed file still exists: %s (err=%v)", path, err)
 	}
 }

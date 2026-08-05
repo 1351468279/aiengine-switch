@@ -90,7 +90,7 @@ func deleteJSONPath(current map[string]any, parts []string) bool {
 
 func claudeValues(paths Paths) map[string]any {
 	return map[string]any{
-		"apiKeyHelper":                       shellCommand(paths.Binary, "credential", "print"),
+		"apiKeyHelper":                       shellCommand(paths.Binary, "credential", "print", "claude"),
 		"model":                              ClaudeModel,
 		"env.ANTHROPIC_BASE_URL":             RelayRootURL,
 		"env.ANTHROPIC_MODEL":                ClaudeModel,

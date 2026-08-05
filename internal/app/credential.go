@@ -62,12 +62,28 @@ func validateToken(raw string) (string, error) {
 	return token, nil
 }
 
-func printCredential() error {
+func printCredential(tool string) error {
 	paths, err := ResolvePaths()
 	if err != nil {
 		return err
 	}
-	file, err := os.Open(paths.Credential)
+	credentialPath := paths.Credential
+	if tool != "" {
+		if tool != "claude" && tool != "codex" {
+			return fmt.Errorf("未知客户端 %q", tool)
+		}
+		state, err := loadState(paths.State)
+		if err != nil {
+			return err
+		}
+		if state == nil || state.Tools[tool] == nil {
+			return fmt.Errorf("%s 凭据不存在，请重新运行 install", tool)
+		}
+		credentialPath = credentialPathForState(state, tool, paths.credentialForTool(tool))
+	} else if state, stateErr := loadState(paths.State); stateErr == nil && state != nil && state.CredentialPath != "" {
+		credentialPath = state.CredentialPath
+	}
+	file, err := os.Open(credentialPath)
 	if errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("凭据不存在，请重新运行 install")
 	}

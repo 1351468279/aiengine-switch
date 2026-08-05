@@ -156,7 +156,7 @@ wire_api = "responses"
 
 [model_providers.aiare.auth]
 command = %s
-args = ["credential", "print"]
+args = ["credential", "print", "codex"]
 timeout_ms = 5000
 refresh_interval_ms = 0
 `, RelayV1URL, command)

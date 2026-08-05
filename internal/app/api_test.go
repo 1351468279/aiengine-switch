@@ -40,3 +40,22 @@ func TestValidateModelsNeverIncludesTokenInError(t *testing.T) {
 		t.Fatalf("expected redacted authorization error, got %v", err)
 	}
 }
+
+func TestValidateModelsOnlyChecksSelectedTool(t *testing.T) {
+	const token = "codex-only-token"
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"data":[{"id":"gpt-5.6-sol"}]}`))
+	}))
+	defer server.Close()
+	previous := modelEndpoint
+	modelEndpoint = server.URL
+	t.Cleanup(func() { modelEndpoint = previous })
+
+	if _, err := validateModels(token, []string{"codex"}); err != nil {
+		t.Fatalf("Codex-only key was rejected: %v", err)
+	}
+	if _, err := validateModels(token, []string{"claude"}); err == nil {
+		t.Fatal("Claude validation unexpectedly accepted a Codex-only key")
+	}
+}

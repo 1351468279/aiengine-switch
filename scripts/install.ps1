@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet("auto", "all", "claude", "codex")]
+    [ValidateSet("auto", "claude", "codex")]
     [string]$Tools = "auto",
     [switch]$Yes,
     [switch]$TokenStdin,

@@ -19,7 +19,7 @@ func runUninstall(options commonOptions) error {
 	if state == nil {
 		return fmt.Errorf("没有找到 AIARE 安装状态")
 	}
-	tools, err := detectTools(options.tools, state.Tools, true)
+	tools, err := detectUninstallTools(options.tools, state.Tools)
 	if err != nil {
 		return err
 	}
@@ -52,9 +52,26 @@ func runUninstall(options commonOptions) error {
 		fmt.Println("演练完成：未修改任何文件。")
 		return nil
 	}
+	credentialPaths := make(map[string]bool)
 	for _, tool := range tools {
+		credentialPaths[credentialPathForState(state, tool, paths.credentialForTool(tool))] = true
 		delete(state.Tools, tool)
 	}
+	if state.CredentialPath != "" && !credentialPathReferenced(state, state.CredentialPath) {
+		credentialPaths[state.CredentialPath] = true
+		state.CredentialPath = ""
+	}
+	for credentialPath := range credentialPaths {
+		if credentialPath == "" || credentialPathReferenced(state, credentialPath) {
+			continue
+		}
+		credentialSnapshot, err := snapshotFile(credentialPath)
+		if err != nil {
+			return err
+		}
+		pending = append(pending, pendingFile{path: credentialPath, remove: true, snapshot: credentialSnapshot})
+	}
+	state.SchemaVersion = stateSchema
 	state.UpdatedAt = time.Now().UTC()
 	stateSnapshot, err := snapshotFile(paths.State)
 	if err != nil {
@@ -62,14 +79,7 @@ func runUninstall(options commonOptions) error {
 	}
 	removeEverything := len(state.Tools) == 0
 	if removeEverything {
-		credentialSnapshot, err := snapshotFile(paths.Credential)
-		if err != nil {
-			return err
-		}
-		pending = append(pending,
-			pendingFile{path: paths.Credential, remove: true, snapshot: credentialSnapshot},
-			pendingFile{path: paths.State, remove: true, snapshot: stateSnapshot},
-		)
+		pending = append(pending, pendingFile{path: paths.State, remove: true, snapshot: stateSnapshot})
 	} else {
 		data, err := marshalState(state)
 		if err != nil {
