@@ -6,10 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"runtime"
 	"strings"
-
-	"golang.org/x/term"
 )
 
 func readToken(fromStdin bool, credentialPath string) (string, error) {
@@ -21,32 +18,23 @@ func readToken(fromStdin bool, credentialPath string) (string, error) {
 		return validateToken(string(data))
 	}
 
-	inputName, outputName := "/dev/tty", "/dev/tty"
-	if runtime.GOOS == "windows" {
-		inputName, outputName = "CONIN$", "CONOUT$"
-	}
-	input, err := os.Open(inputName)
+	input, err := openTerminalInput()
 	if err != nil {
 		return "", fmt.Errorf("无法打开交互终端；请改用 --token-stdin")
 	}
 	defer input.Close()
-	output, err := os.OpenFile(outputName, os.O_WRONLY, 0)
-	if err != nil {
-		return "", fmt.Errorf("无法打开交互终端输出")
-	}
-	defer output.Close()
 
 	hasCurrent := false
 	if _, err := os.Stat(credentialPath); err == nil {
 		hasCurrent = true
 	}
 	if hasCurrent {
-		fmt.Fprint(output, "请输入新的 AIARE API 密钥（留空保留当前密钥）: ")
+		fmt.Print("请输入新的 AIARE API 密钥（留空保留当前密钥）: ")
 	} else {
-		fmt.Fprint(output, "请输入 AIARE API 密钥: ")
+		fmt.Print("请输入 AIARE API 密钥: ")
 	}
-	data, err := term.ReadPassword(int(input.Fd()))
-	fmt.Fprintln(output)
+	data, err := readTerminalPassword(input)
+	fmt.Println()
 	if err != nil {
 		return "", fmt.Errorf("读取密钥: %w", err)
 	}

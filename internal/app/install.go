@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 )
@@ -199,11 +198,7 @@ func rollbackFiles(files []pendingFile) {
 }
 
 func confirmInstall() (bool, error) {
-	name := "/dev/tty"
-	if runtime.GOOS == "windows" {
-		name = "CONIN$"
-	}
-	terminal, err := os.Open(name)
+	terminal, err := openTerminalInput()
 	if err != nil {
 		return false, fmt.Errorf("无法读取确认；非交互安装请添加 --yes")
 	}
