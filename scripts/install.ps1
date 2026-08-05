@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [ValidateSet("auto", "all", "claude", "codex")]
     [string]$Tools = "auto",

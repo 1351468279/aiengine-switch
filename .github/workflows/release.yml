@@ -20,7 +20,9 @@ jobs:
           cache: true
 
       - name: Test
-        run: go test ./...
+        run: |
+          go test ./...
+          test "$(sed -n '1{s/\r$//;p;}' scripts/install.ps1)" = '[CmdletBinding()]'
 
       - name: Build release archives
         env:
