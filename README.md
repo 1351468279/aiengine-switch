@@ -1,10 +1,10 @@
-# AIARE CLI Setup
+# AiEngine CLI Setup
 
-为 AIARE API 中转站配置现有的 Claude Code 或 Codex CLI。用户只需运行一条在线命令并输入自己的 API 密钥，不需要安装桌面切换工具。
+为 AiEngine API 中转站配置现有的 Claude Code 或 Codex CLI。用户只需运行一条在线命令并输入自己的 API 密钥，不需要安装桌面切换工具。
 
 ## 一键接入
 
-开始前请先安装至少一个目标 CLI，并在 AIARE 控制台创建 API 密钥。
+开始前请先安装至少一个目标 CLI，并在 AiEngine 控制台创建 API 密钥。
 
 macOS、Linux 或 WSL：
 
@@ -24,8 +24,8 @@ Claude 与 Codex 使用不同权限的密钥时，请分别运行两次安装命
 
 ## 安装器做什么
 
-- Claude Code：合并修改 `~/.claude/settings.json`（或 `CLAUDE_CONFIG_DIR`），配置 AIARE 地址、默认模型和 `apiKeyHelper`。
-- Codex：合并修改 `~/.codex/config.toml`（或 `CODEX_HOME`），添加 `aiare` Responses provider 和凭据命令。
+- Claude Code：合并修改 `~/.claude/settings.json`（或 `CLAUDE_CONFIG_DIR`），配置 AiEngine 地址、默认模型和 `apiKeyHelper`。
+- Codex：合并修改 `~/.codex/config.toml`（或 `CODEX_HOME`），添加 `aiengine` Responses provider 和凭据命令。
 - 密钥：Claude 与 Codex 分别写入安装器专用的受保护文件，不出现在命令行参数、Claude/Codex 配置或安装状态中。
 - 备份：首次修改前保留原配置；卸载时只恢复本工具管理且未被用户再次修改的字段。
 - Codex 登录：不会读取或修改 `~/.codex/auth.json`，官方登录状态会保留。
@@ -44,19 +44,19 @@ Claude 与 Codex 使用不同权限的密钥时，请分别运行两次安装命
 macOS、Linux 和 WSL：
 
 ```sh
-~/.aiare-setup/bin/aiare-setup doctor
-~/.aiare-setup/bin/aiare-setup install --tools codex
-~/.aiare-setup/bin/aiare-setup install --tools claude
-~/.aiare-setup/bin/aiare-setup uninstall --tools all
+~/.aiengine-setup/bin/aiengine-setup doctor
+~/.aiengine-setup/bin/aiengine-setup install --tools codex
+~/.aiengine-setup/bin/aiengine-setup install --tools claude
+~/.aiengine-setup/bin/aiengine-setup uninstall --tools all
 ```
 
 Windows PowerShell：
 
 ```powershell
-& "$env:LOCALAPPDATA\AIARE\CLISetup\bin\aiare-setup.exe" doctor
-& "$env:LOCALAPPDATA\AIARE\CLISetup\bin\aiare-setup.exe" install --tools codex
-& "$env:LOCALAPPDATA\AIARE\CLISetup\bin\aiare-setup.exe" install --tools claude
-& "$env:LOCALAPPDATA\AIARE\CLISetup\bin\aiare-setup.exe" uninstall --tools all
+& "$env:LOCALAPPDATA\AiEngine\CLISetup\bin\aiengine-setup.exe" doctor
+& "$env:LOCALAPPDATA\AiEngine\CLISetup\bin\aiengine-setup.exe" install --tools codex
+& "$env:LOCALAPPDATA\AiEngine\CLISetup\bin\aiengine-setup.exe" install --tools claude
+& "$env:LOCALAPPDATA\AiEngine\CLISetup\bin\aiengine-setup.exe" uninstall --tools all
 ```
 
 再次对同一客户端执行 `install` 可轮换它的密钥。安装不支持 `--tools all`，必须一次配置一个客户端；卸载仍可使用 `--tools all`。`doctor` 会分别检查每个客户端的 CLI、配置、凭据权限和远端模型可用性。
@@ -69,7 +69,9 @@ Claude Code 的认证环境变量优先级可能高于配置文件。安装时�
 
 ## 非交互与排障
 
-在线脚本优先从 AIARE 域名下载，并在不可用时回退到 GitHub Release。两个来源都必须通过发行版 `CHECKSUMS.txt` 的 SHA-256 校验。
+在线脚本优先从 AiEngine 域名下载，并在不可用时回退到 GitHub Release。两个来源都必须通过发行版 `CHECKSUMS.txt` 的 SHA-256 校验。
+
+安装器目录和可执行文件可分别通过 `AIENGINE_SETUP_HOME`、`AIENGINE_SETUP_BINARY` 覆盖。旧版使用的 `AIARE_SETUP_HOME`、`AIARE_SETUP_BINARY` 仅为兼容已有安装而保留，新部署请使用 AiEngine 字段。
 
 可用参数：
 
@@ -81,7 +83,7 @@ curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --dry-run
 curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools codex
 
 # 自动确认，并从标准输入读取密钥（仅建议在受控自动化环境使用）
-printf '%s\n' "$AIARE_API_KEY" | ~/.aiare-setup/bin/aiare-setup install --tools codex --yes --token-stdin
+printf '%s\n' "$AIENGINE_API_KEY" | ~/.aiengine-setup/bin/aiengine-setup install --tools codex --yes --token-stdin
 ```
 
 PowerShell 在线安装也可明确选择客户端：
@@ -98,18 +100,18 @@ PowerShell 在线安装也可明确选择客户端：
 
 ```sh
 go test ./...
-go build ./cmd/aiare-setup
+go build ./cmd/aiengine-setup
 ```
 
-推送 `setup-v*` 标签会由 GitHub Actions 测试并构建 Linux、macOS、Windows 的 amd64/arm64 发布包。Release 完成后，在 AIARE 服务器执行一次：
+推送 `setup-v*` 标签会由 GitHub Actions 测试并构建 Linux、macOS、Windows 的 amd64/arm64 发布包。Release 完成后，在 AiEngine 服务器执行一次：
 
 ```sh
-sudo ./deploy/publish.sh setup-v1.1.0
+sudo ./deploy/publish.sh setup-v1.2.0
 ```
 
 发布脚本会下载并校验全部资产，通过原子符号链接切换 `current`，校验 Nginx 后重载；失败时恢复原入口。详细发布步骤见 [docs/release.md](docs/release.md)。
 
-旧版桌面应用保存在 Git 分支 `legacy/desktop-v3.19.1` 和标签 `aiare-desktop-v3.19.1`。
+已有旧版 CLI 安装会继续使用原安装目录，并在再次运行安装器时迁移受管的 Codex provider；无需手动清理旧配置。
 
 ## 许可证
 

@@ -52,7 +52,7 @@ func atomicWriteFile(path string, data []byte, mode fs.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	temp, err := os.CreateTemp(filepath.Dir(path), ".aiare-write-*")
+	temp, err := os.CreateTemp(filepath.Dir(path), ".aiengine-write-*")
 	if err != nil {
 		return err
 	}

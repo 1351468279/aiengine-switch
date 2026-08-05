@@ -30,7 +30,7 @@ func parseTOML(data []byte, path string) (map[string]any, error) {
 func codexValues() map[string]any {
 	return map[string]any{
 		"model":                    CodexModel,
-		"model_provider":           "aiare",
+		"model_provider":           codexProviderID,
 		"model_reasoning_effort":   "high",
 		"disable_response_storage": true,
 	}
@@ -105,23 +105,24 @@ func removeTopLevel(text, key string) (string, error) {
 	return strings.Join(lines, "\n"), nil
 }
 
-func providerHeading(line string) (bool, bool) {
+func providerHeading(line, providerID string) (bool, bool) {
 	match := tomlTablePattern.FindStringSubmatch(line)
 	if match == nil {
 		return false, false
 	}
 	heading := strings.TrimSpace(match[1])
-	return heading == "model_providers.aiare", strings.HasPrefix(heading, "model_providers.aiare.")
+	root := "model_providers." + providerID
+	return heading == root, strings.HasPrefix(heading, root+".")
 }
 
-func extractProviderBlock(text string) (before, block string, found bool, err error) {
+func extractProviderBlock(text, providerID string) (before, block string, found bool, err error) {
 	lines := splitLines(text)
 	start, end := -1, -1
 	for i, line := range lines {
-		root, child := providerHeading(line)
+		root, child := providerHeading(line, providerID)
 		if start < 0 {
 			if child {
-				return "", "", false, fmt.Errorf("发现孤立的 [model_providers.aiare.*] 配置")
+				return "", "", false, fmt.Errorf("发现孤立的 [model_providers.%s.*] 配置", providerID)
 			}
 			if root {
 				start = i
@@ -147,19 +148,31 @@ func extractProviderBlock(text string) (before, block string, found bool, err er
 	return strings.TrimRight(strings.Join(remaining, "\n"), "\n"), strings.Join(blockLines, "\n") + "\n", true, nil
 }
 
+func providerIDFromBlock(block string) string {
+	for _, providerID := range []string{codexProviderID, legacyProviderID} {
+		for _, line := range splitLines(block) {
+			root, _ := providerHeading(line, providerID)
+			if root {
+				return providerID
+			}
+		}
+	}
+	return codexProviderID
+}
+
 func codexProviderBlock(paths Paths) string {
 	command, _ := tomlScalar(paths.Binary)
-	return fmt.Sprintf(`[model_providers.aiare]
-name = "AIARE NewAPI"
+	return fmt.Sprintf(`[model_providers.%s]
+name = "AiEngine NewAPI"
 base_url = %q
 wire_api = "responses"
 
-[model_providers.aiare.auth]
+[model_providers.%s.auth]
 command = %s
 args = ["credential", "print", "codex"]
 timeout_ms = 5000
 refresh_interval_ms = 0
-`, RelayV1URL, command)
+`, codexProviderID, RelayV1URL, codexProviderID, command)
 }
 
 func appendProviderBlock(text, block string) string {
@@ -170,12 +183,12 @@ func appendProviderBlock(text, block string) string {
 	return trimmed + "\n\n" + block
 }
 
-func providerExists(parsed map[string]any) bool {
+func providerExists(parsed map[string]any, providerID string) bool {
 	providers, ok := parsed["model_providers"].(map[string]any)
 	if !ok {
 		return false
 	}
-	_, ok = providers["aiare"]
+	_, ok = providers[providerID]
 	return ok
 }
 
@@ -192,12 +205,29 @@ func prepareCodexInstall(paths Paths, previous *ToolState) ([]byte, fileSnapshot
 		return nil, fileSnapshot{}, nil, err
 	}
 	text := string(snapshot.data)
-	withoutProvider, oldBlock, blockFound, err := extractProviderBlock(text)
+	managedProviderID := codexProviderID
+	if previous != nil {
+		managedProviderID = providerIDFromBlock(previous.InstalledBlock)
+	}
+	withoutProvider, oldBlock, blockFound, err := extractProviderBlock(text, managedProviderID)
 	if err != nil {
 		return nil, fileSnapshot{}, nil, err
 	}
-	if providerExists(parsed) && !blockFound {
-		return nil, fileSnapshot{}, nil, fmt.Errorf("已有 aiare provider 使用了无法安全编辑的内联或点号语法")
+	if providerExists(parsed, managedProviderID) && !blockFound {
+		return nil, fileSnapshot{}, nil, fmt.Errorf("已有 %s provider 使用了无法安全编辑的内联或点号语法", managedProviderID)
+	}
+	if managedProviderID != codexProviderID {
+		parsedWithoutLegacy, err := parseTOML([]byte(withoutProvider), paths.CodexConfig)
+		if err != nil {
+			return nil, fileSnapshot{}, nil, err
+		}
+		_, _, currentFound, err := extractProviderBlock(withoutProvider, codexProviderID)
+		if err != nil {
+			return nil, fileSnapshot{}, nil, err
+		}
+		if currentFound || providerExists(parsedWithoutLegacy, codexProviderID) {
+			return nil, fileSnapshot{}, nil, fmt.Errorf("迁移旧配置时发现已有 %s provider，请先处理该配置", codexProviderID)
+		}
 	}
 	state := &ToolState{ConfigPath: paths.CodexConfig, ConfigExisted: snapshot.existed, Fields: make(map[string]FieldState)}
 	if previous != nil {
@@ -251,7 +281,8 @@ func prepareCodexUninstall(state *ToolState, force bool) ([]byte, fileSnapshot, 
 	if err != nil {
 		return nil, fileSnapshot{}, nil, false, err
 	}
-	text, currentBlock, found, err := extractProviderBlock(string(snapshot.data))
+	providerID := providerIDFromBlock(state.InstalledBlock)
+	text, currentBlock, found, err := extractProviderBlock(string(snapshot.data), providerID)
 	if err != nil {
 		return nil, fileSnapshot{}, nil, false, err
 	}
@@ -276,7 +307,7 @@ func prepareCodexUninstall(state *ToolState, force bool) ([]byte, fileSnapshot, 
 		}
 	}
 	if !force && (!found || currentBlock != state.InstalledBlock) {
-		conflicts = append(conflicts, "model_providers.aiare")
+		conflicts = append(conflicts, "model_providers."+providerID)
 	} else if state.OriginalBlockOK {
 		text = appendProviderBlock(text, state.OriginalBlock)
 	}

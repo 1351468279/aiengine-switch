@@ -1,7 +1,7 @@
 package app
 
 const (
-	ProductName      = "AIARE CLI Setup"
+	ProductName      = "AiEngine CLI Setup"
 	RelayRootURL     = "https://modelapi.aiaiaiaiai.cloud"
 	RelayV1URL       = RelayRootURL + "/v1"
 	ClaudeModel      = "claude-sonnet-5"
@@ -9,6 +9,8 @@ const (
 	ClaudeHaikuModel = "claude-haiku-4-5-20251001"
 	CodexModel       = "gpt-5.6-sol"
 	stateSchema      = 2
+	codexProviderID  = "aiengine"
+	legacyProviderID = "aiare"
 )
 
 var managedClaudeFields = []string{

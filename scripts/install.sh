@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-PRIMARY_BASE="https://modelapi.aiaiaiaiai.cloud/aiare-setup/current"
+PRIMARY_BASE="https://modelapi.aiaiaiaiai.cloud/aiengine-setup/current"
 FALLBACK_BASE="https://github.com/1351468279/aiengine-switch/releases/latest/download"
 
 fail() {
@@ -46,8 +46,8 @@ case "$(uname -m)" in
   *) fail "不支持的 CPU 架构: $(uname -m)" ;;
 esac
 
-archive="aiare-setup_${setup_os}_${setup_arch}.tar.gz"
-setup_tmp=$(mktemp -d 2>/dev/null || mktemp -d -t aiare-setup) || fail "无法创建临时目录"
+archive="aiengine-setup_${setup_os}_${setup_arch}.tar.gz"
+setup_tmp=$(mktemp -d 2>/dev/null || mktemp -d -t aiengine-setup) || fail "无法创建临时目录"
 cleanup() {
   if [ -n "${setup_tmp:-}" ] && [ -d "$setup_tmp" ]; then
     rm -rf -- "$setup_tmp"
@@ -66,18 +66,18 @@ download_release() {
   [ "$actual" = "$expected" ] || return 1
 }
 
-printf '正在获取适用于 %s/%s 的 AIARE 安装器...\n' "$setup_os" "$setup_arch"
+printf '正在获取适用于 %s/%s 的 AiEngine 安装器...\n' "$setup_os" "$setup_arch"
 if download_release "$PRIMARY_BASE"; then
-  printf '下载源: AIARE\n'
+  printf '下载源: AiEngine\n'
 elif download_release "$FALLBACK_BASE"; then
-  printf '下载源: GitHub Release（AIARE 下载源不可用）\n'
+  printf '下载源: GitHub Release（AiEngine 下载源不可用）\n'
 else
   fail "主下载源和 GitHub Release 均下载或校验失败"
 fi
 
 mkdir "$setup_tmp/extract"
 tar -xzf "$setup_tmp/$archive" -C "$setup_tmp/extract"
-binary="$setup_tmp/extract/aiare-setup"
-[ -f "$binary" ] || fail "发布包中缺少 aiare-setup"
+binary="$setup_tmp/extract/aiengine-setup"
+[ -f "$binary" ] || fail "发布包中缺少 aiengine-setup"
 chmod 700 "$binary"
 "$binary" install "$@"

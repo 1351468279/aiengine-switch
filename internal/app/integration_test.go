@@ -22,7 +22,7 @@ func TestInstallRerunDoctorAndUninstall(t *testing.T) {
 	writeFakeTool(t, binDir, "codex", "codex-cli test")
 
 	t.Setenv("HOME", home)
-	t.Setenv("AIARE_SETUP_HOME", filepath.Join(home, ".aiare-setup"))
+	t.Setenv("AIENGINE_SETUP_HOME", filepath.Join(home, ".aiengine-setup"))
 	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(home, ".claude"))
 	t.Setenv("CODEX_HOME", filepath.Join(home, ".codex"))
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -233,7 +233,7 @@ func TestInstallValidationFailureDoesNotWriteFiles(t *testing.T) {
 	}
 	writeFakeTool(t, binDir, "codex", "codex-cli test")
 	t.Setenv("HOME", home)
-	t.Setenv("AIARE_SETUP_HOME", filepath.Join(home, ".aiare-setup"))
+	t.Setenv("AIENGINE_SETUP_HOME", filepath.Join(home, ".aiengine-setup"))
 	t.Setenv("CODEX_HOME", filepath.Join(home, ".codex"))
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 

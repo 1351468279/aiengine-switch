@@ -17,7 +17,7 @@ func runUninstall(options commonOptions) error {
 		return err
 	}
 	if state == nil {
-		return fmt.Errorf("没有找到 AIARE 安装状态")
+		return fmt.Errorf("没有找到 AiEngine 安装状态")
 	}
 	tools, err := detectUninstallTools(options.tools, state.Tools)
 	if err != nil {

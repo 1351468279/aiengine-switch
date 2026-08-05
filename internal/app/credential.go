@@ -29,9 +29,9 @@ func readToken(fromStdin bool, credentialPath string) (string, error) {
 		hasCurrent = true
 	}
 	if hasCurrent {
-		fmt.Print("请输入新的 AIARE API 密钥（留空保留当前密钥）: ")
+		fmt.Print("请输入新的 AiEngine API 密钥（留空保留当前密钥）: ")
 	} else {
-		fmt.Print("请输入 AIARE API 密钥: ")
+		fmt.Print("请输入 AiEngine API 密钥: ")
 	}
 	data, err := readTerminalPassword(input)
 	fmt.Println()

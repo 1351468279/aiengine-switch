@@ -10,7 +10,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-$PrimaryBase = "https://modelapi.aiaiaiaiai.cloud/aiare-setup/current"
+$PrimaryBase = "https://modelapi.aiaiaiaiai.cloud/aiengine-setup/current"
 $FallbackBase = "https://github.com/1351468279/aiengine-switch/releases/latest/download"
 
 if ([Environment]::Is64BitOperatingSystem -eq $false) {
@@ -25,8 +25,8 @@ $Architecture = switch ($ProcessorArchitecture) {
     "AMD64" { "amd64" }
     default { throw "不支持的 CPU 架构: $ProcessorArchitecture" }
 }
-$Archive = "aiare-setup_windows_${Architecture}.zip"
-$SetupTemp = Join-Path ([IO.Path]::GetTempPath()) ("aiare-setup-" + [Guid]::NewGuid().ToString("N"))
+$Archive = "aiengine-setup_windows_${Architecture}.zip"
+$SetupTemp = Join-Path ([IO.Path]::GetTempPath()) ("aiengine-setup-" + [Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $SetupTemp | Out-Null
 
 function Get-Release([string]$Base) {
@@ -48,12 +48,12 @@ function Get-Release([string]$Base) {
 }
 
 try {
-    Write-Host "正在获取适用于 Windows/$Architecture 的 AIARE 安装器..."
+    Write-Host "正在获取适用于 Windows/$Architecture 的 AiEngine 安装器..."
     if (Get-Release $PrimaryBase) {
-        Write-Host "下载源: AIARE"
+        Write-Host "下载源: AiEngine"
     }
     elseif (Get-Release $FallbackBase) {
-        Write-Host "下载源: GitHub Release（AIARE 下载源不可用）"
+        Write-Host "下载源: GitHub Release（AiEngine 下载源不可用）"
     }
     else {
         throw "主下载源和 GitHub Release 均下载或校验失败"
@@ -61,9 +61,9 @@ try {
 
     $Extract = Join-Path $SetupTemp "extract"
     Expand-Archive -Path (Join-Path $SetupTemp $Archive) -DestinationPath $Extract
-    $Binary = Join-Path $Extract "aiare-setup.exe"
+    $Binary = Join-Path $Extract "aiengine-setup.exe"
     if (-not (Test-Path -LiteralPath $Binary -PathType Leaf)) {
-        throw "发布包中缺少 aiare-setup.exe"
+        throw "发布包中缺少 aiengine-setup.exe"
     }
     $BinaryArgs = @("install", "--tools", $Tools)
     if ($Yes) { $BinaryArgs += "--yes" }
@@ -71,7 +71,7 @@ try {
     if ($DryRun) { $BinaryArgs += "--dry-run" }
     if ($SkipApiCheck) { $BinaryArgs += "--skip-api-check" }
     & $Binary @BinaryArgs
-    if ($LASTEXITCODE -ne 0) { throw "AIARE 安装器返回错误 $LASTEXITCODE" }
+    if ($LASTEXITCODE -ne 0) { throw "AiEngine 安装器返回错误 $LASTEXITCODE" }
 }
 finally {
     Remove-Item -LiteralPath $SetupTemp -Recurse -Force -ErrorAction SilentlyContinue

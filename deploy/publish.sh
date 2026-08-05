@@ -2,8 +2,9 @@
 set -eu
 
 REPOSITORY="1351468279/aiengine-switch"
-WEBROOT="/www/wwwroot/newapi.aiare.cloud/aiare-setup"
-NGINX_TARGET="/www/server/panel/vhost/nginx/extension/newapi.aiare.cloud/aiare-setup.conf"
+WEBROOT="/www/wwwroot/newapi.aiare.cloud/aiengine-setup"
+NGINX_TARGET="/www/server/panel/vhost/nginx/extension/newapi.aiare.cloud/aiengine-setup.conf"
+LEGACY_NGINX_TARGET="/www/server/panel/vhost/nginx/extension/newapi.aiare.cloud/aiare-setup.conf"
 
 if [ "$#" -ne 1 ]; then
   printf '用法: %s setup-v1.0.0\n' "$0" >&2
@@ -22,7 +23,7 @@ fi
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 release_url="https://github.com/$REPOSITORY/releases/download/$tag"
-publish_tmp=$(mktemp -d /tmp/aiare-publish.XXXXXX)
+publish_tmp=$(mktemp -d /tmp/aiengine-publish.XXXXXX)
 stage="$WEBROOT/releases/.${tag}.stage.$$"
 target="$WEBROOT/releases/$tag"
 old_current=""
@@ -40,20 +41,28 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
+printf '下载 GitHub Release %s...\n' "$tag"
+curl -fL --retry 3 --connect-timeout 10 "$release_url/CHECKSUMS.txt" -o "$publish_tmp/CHECKSUMS.txt"
+if grep -Eq '[[:space:]]aiengine-setup_linux_amd64\.tar\.gz$' "$publish_tmp/CHECKSUMS.txt"; then
+  asset_prefix="aiengine-setup"
+elif grep -Eq '[[:space:]]aiare-setup_linux_amd64\.tar\.gz$' "$publish_tmp/CHECKSUMS.txt"; then
+  # setup-v1.1.0 and older releases use the pre-rename asset prefix.
+  asset_prefix="aiare-setup"
+else
+  printf '发布校验清单中没有可识别的安装包。\n' >&2
+  exit 1
+fi
 assets="
-aiare-setup_linux_amd64.tar.gz
-aiare-setup_linux_arm64.tar.gz
-aiare-setup_darwin_amd64.tar.gz
-aiare-setup_darwin_arm64.tar.gz
-aiare-setup_windows_amd64.zip
-aiare-setup_windows_arm64.zip
-CHECKSUMS.txt
+${asset_prefix}_linux_amd64.tar.gz
+${asset_prefix}_linux_arm64.tar.gz
+${asset_prefix}_darwin_amd64.tar.gz
+${asset_prefix}_darwin_arm64.tar.gz
+${asset_prefix}_windows_amd64.zip
+${asset_prefix}_windows_arm64.zip
 latest.json
 install.sh
 install.ps1
 "
-
-printf '下载 GitHub Release %s...\n' "$tag"
 for asset in $assets; do
   curl -fL --retry 3 --connect-timeout 10 "$release_url/$asset" -o "$publish_tmp/$asset"
 done
@@ -75,7 +84,7 @@ if [ -e "$target" ]; then
   printf '复用已校验的发布目录: %s\n' "$target"
 else
   mkdir "$stage"
-  for asset in $assets; do
+  for asset in CHECKSUMS.txt $assets; do
     install -m 0644 "$publish_tmp/$asset" "$stage/$asset"
   done
   mv "$stage" "$target"
@@ -84,18 +93,33 @@ ln -s "releases/$tag" "$WEBROOT/.current.$$"
 mv -Tf "$WEBROOT/.current.$$" "$WEBROOT/current"
 
 nginx_backup="$publish_tmp/nginx.previous"
+legacy_nginx_backup="$publish_tmp/nginx.legacy.previous"
 nginx_existed=0
+legacy_nginx_existed=0
 if [ -f "$NGINX_TARGET" ]; then
   cp "$NGINX_TARGET" "$nginx_backup"
   nginx_existed=1
 fi
-install -m 0644 "$script_dir/nginx-aiare-setup.conf" "$NGINX_TARGET"
-if ! nginx -t; then
+if [ -f "$LEGACY_NGINX_TARGET" ]; then
+  cp "$LEGACY_NGINX_TARGET" "$legacy_nginx_backup"
+  legacy_nginx_existed=1
+fi
+restore_nginx() {
   if [ "$nginx_existed" -eq 1 ]; then
     cp "$nginx_backup" "$NGINX_TARGET"
   else
     rm -f -- "$NGINX_TARGET"
   fi
+  if [ "$legacy_nginx_existed" -eq 1 ]; then
+    cp "$legacy_nginx_backup" "$LEGACY_NGINX_TARGET"
+  else
+    rm -f -- "$LEGACY_NGINX_TARGET"
+  fi
+}
+install -m 0644 "$script_dir/nginx-aiengine-setup.conf" "$NGINX_TARGET"
+rm -f -- "$LEGACY_NGINX_TARGET"
+if ! nginx -t; then
+  restore_nginx
   if [ -n "$old_current" ]; then
     ln -s "$old_current" "$WEBROOT/.current.rollback.$$"
     mv -Tf "$WEBROOT/.current.rollback.$$" "$WEBROOT/current"
@@ -106,11 +130,7 @@ if ! nginx -t; then
   exit 1
 fi
 if ! nginx -s reload; then
-  if [ "$nginx_existed" -eq 1 ]; then
-    cp "$nginx_backup" "$NGINX_TARGET"
-  else
-    rm -f -- "$NGINX_TARGET"
-  fi
+  restore_nginx
   if [ -n "$old_current" ]; then
     ln -s "$old_current" "$WEBROOT/.current.rollback.$$"
     mv -Tf "$WEBROOT/.current.rollback.$$" "$WEBROOT/current"

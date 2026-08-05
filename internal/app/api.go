@@ -21,17 +21,17 @@ func validateModels(token string, tools []string) ([]string, error) {
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "aiare-setup")
+	req.Header.Set("User-Agent", "aiengine-setup")
 	response, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("连接 AIARE API 失败: %w", err)
+		return nil, fmt.Errorf("连接 AiEngine API 失败: %w", err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
-		return nil, fmt.Errorf("AIARE API 拒绝了该密钥（HTTP %d）", response.StatusCode)
+		return nil, fmt.Errorf("AiEngine API 拒绝了该密钥（HTTP %d）", response.StatusCode)
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, fmt.Errorf("AIARE 模型接口返回 HTTP %d", response.StatusCode)
+		return nil, fmt.Errorf("AiEngine 模型接口返回 HTTP %d", response.StatusCode)
 	}
 	var payload struct {
 		Data []struct {
@@ -40,7 +40,7 @@ func validateModels(token string, tools []string) ([]string, error) {
 	}
 	decoder := json.NewDecoder(io.LimitReader(response.Body, 4*1024*1024))
 	if err := decoder.Decode(&payload); err != nil {
-		return nil, fmt.Errorf("AIARE 模型接口响应无效: %w", err)
+		return nil, fmt.Errorf("AiEngine 模型接口响应无效: %w", err)
 	}
 	available := make(map[string]bool)
 	for _, model := range payload.Data {

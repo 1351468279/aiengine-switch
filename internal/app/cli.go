@@ -53,13 +53,13 @@ func Run(args []string, version string) error {
 		}
 		return printCredential(tool)
 	case "version", "--version", "-v":
-		fmt.Printf("aiare-setup %s\n", version)
+		fmt.Printf("aiengine-setup %s\n", version)
 		return nil
 	case "help", "--help", "-h":
 		printUsage(os.Stdout)
 		return nil
 	default:
-		return fmt.Errorf("未知命令 %q，请运行 aiare-setup help", args[0])
+		return fmt.Errorf("未知命令 %q，请运行 aiengine-setup help", args[0])
 	}
 }
 
@@ -109,13 +109,13 @@ func parseUninstallOptions(args []string) (commonOptions, error) {
 }
 
 func printUsage(writer io.Writer) {
-	fmt.Fprintln(writer, `AIARE CLI Setup - 配置 Claude Code 或 Codex 接入 AIARE API
+	fmt.Fprintln(writer, `AiEngine CLI Setup - 配置 Claude Code 或 Codex 接入 AiEngine API
 
 用法:
-  aiare-setup install [--tools auto|claude|codex] [--token-stdin] [--dry-run]
-  aiare-setup doctor [--skip-api-check]
-  aiare-setup uninstall [--tools all|claude|codex] [--force] [--dry-run]
-  aiare-setup version
+  aiengine-setup install [--tools auto|claude|codex] [--token-stdin] [--dry-run]
+  aiengine-setup doctor [--skip-api-check]
+  aiengine-setup uninstall [--tools all|claude|codex] [--force] [--dry-run]
+  aiengine-setup version
 
 每次安装只配置一个客户端；再次运行可添加另一个客户端或轮换对应密钥。
 安装器只配置已安装的 CLI，不会安装 Claude Code 或 Codex。`)

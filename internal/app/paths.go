@@ -28,16 +28,26 @@ func ResolvePaths() (Paths, error) {
 		return Paths{}, fmt.Errorf("无法确定用户主目录")
 	}
 
-	base := filepath.Join(home, ".aiare-setup")
+	base := filepath.Join(home, ".aiengine-setup")
+	legacyBase := filepath.Join(home, ".aiare-setup")
 	if runtime.GOOS == "windows" {
 		local := os.Getenv("LOCALAPPDATA")
 		if local == "" {
 			local = filepath.Join(home, "AppData", "Local")
 		}
-		base = filepath.Join(local, "AIARE", "CLISetup")
+		base = filepath.Join(local, "AiEngine", "CLISetup")
+		legacyBase = filepath.Join(local, "AIARE", "CLISetup")
 	}
-	if configured := os.Getenv("AIARE_SETUP_HOME"); configured != "" {
+	legacyLayout := false
+	if configured := os.Getenv("AIENGINE_SETUP_HOME"); configured != "" {
 		base = configured
+	} else if configured := os.Getenv("AIARE_SETUP_HOME"); configured != "" {
+		// Keep installations made before the AiEngine rename operable.
+		base = configured
+		legacyLayout = true
+	} else if _, err := os.Stat(filepath.Join(legacyBase, "state.json")); err == nil {
+		base = legacyBase
+		legacyLayout = true
 	}
 
 	claudeDir := filepath.Join(home, ".claude")
@@ -49,12 +59,18 @@ func ResolvePaths() (Paths, error) {
 		codexDir = configured
 	}
 
-	binaryName := "aiare-setup"
+	binaryName := "aiengine-setup"
+	if legacyLayout {
+		binaryName = "aiare-setup"
+	}
 	if runtime.GOOS == "windows" {
 		binaryName += ".exe"
 	}
 	binary := filepath.Join(base, "bin", binaryName)
-	if configured := os.Getenv("AIARE_SETUP_BINARY"); configured != "" {
+	if configured := os.Getenv("AIENGINE_SETUP_BINARY"); configured != "" {
+		binary = configured
+	} else if configured := os.Getenv("AIARE_SETUP_BINARY"); configured != "" {
+		// Deprecated compatibility override for existing installations.
 		binary = configured
 	}
 	return Paths{

@@ -31,7 +31,7 @@ func runDoctor(options commonOptions, version string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("AIARE CLI Setup %s 诊断\n", version)
+	fmt.Printf("AiEngine CLI Setup %s 诊断\n", version)
 	report := &doctorReport{}
 	state, err := loadState(paths.State)
 	if err != nil {
@@ -158,9 +158,10 @@ func checkCodexDoctor(report *doctorReport, state *ToolState) {
 			matched = false
 		}
 	}
-	_, block, found, err := extractProviderBlock(string(snapshot.data))
+	providerID := providerIDFromBlock(state.InstalledBlock)
+	_, block, found, err := extractProviderBlock(string(snapshot.data), providerID)
 	if err != nil || !found || block != state.InstalledBlock {
-		report.fail("Codex aiare provider 配置与安装状态不一致")
+		report.fail("Codex %s provider 配置与安装状态不一致", providerID)
 		matched = false
 	}
 	if matched {
