@@ -2,7 +2,7 @@
 set -eu
 
 PRIMARY_BASE="https://modelapi.aiaiaiaiai.cloud/aiengine-setup/current"
-FALLBACK_BASE="https://github.com/1351468279/aiengine-switch/releases/latest/download"
+FALLBACK_BASE="https://raw.githubusercontent.com/1351468279/aiengine-switch/setup-assets"
 
 fail() {
   printf '安装失败: %s\n' "$1" >&2
@@ -70,9 +70,9 @@ printf '正在获取适用于 %s/%s 的 AiEngine 安装器...\n' "$setup_os" "$s
 if download_release "$PRIMARY_BASE"; then
   printf '下载源: AiEngine\n'
 elif download_release "$FALLBACK_BASE"; then
-  printf '下载源: GitHub Release（AiEngine 下载源不可用）\n'
+  printf '下载源: GitHub 备用源（AiEngine 下载源不可用）\n'
 else
-  fail "主下载源和 GitHub Release 均下载或校验失败"
+  fail "主下载源和 GitHub 备用源均下载或校验失败"
 fi
 
 mkdir "$setup_tmp/extract"

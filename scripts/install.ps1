@@ -12,7 +12,7 @@ param(
 $ErrorActionPreference = "Stop"
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 $PrimaryBase = "https://modelapi.aiaiaiaiai.cloud/aiengine-setup/current"
-$FallbackBase = "https://github.com/1351468279/aiengine-switch/releases/latest/download"
+$FallbackBase = "https://raw.githubusercontent.com/1351468279/aiengine-switch/setup-assets"
 
 if ([Environment]::Is64BitOperatingSystem -eq $false) {
     throw "仅支持 64 位 Windows"
@@ -54,10 +54,10 @@ try {
         Write-Host "下载源: AiEngine"
     }
     elseif (Get-Release $FallbackBase) {
-        Write-Host "下载源: GitHub Release（AiEngine 下载源不可用）"
+        Write-Host "下载源: GitHub 备用源（AiEngine 下载源不可用）"
     }
     else {
-        throw "主下载源和 GitHub Release 均下载或校验失败"
+        throw "主下载源和 GitHub 备用源均下载或校验失败"
     }
 
     $Extract = Join-Path $SetupTemp "extract"

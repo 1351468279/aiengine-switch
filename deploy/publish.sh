@@ -23,6 +23,7 @@ fi
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 release_url="https://github.com/$REPOSITORY/releases/download/$tag"
+asset_branch_url="https://raw.githubusercontent.com/$REPOSITORY/setup-assets"
 publish_tmp=$(mktemp -d /tmp/aiengine-publish.XXXXXX)
 stage="$WEBROOT/releases/.${tag}.stage.$$"
 target="$WEBROOT/releases/$tag"
@@ -41,18 +42,19 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-printf '下载 GitHub Release %s...\n' "$tag"
-curl -fL --retry 3 --connect-timeout 10 "$release_url/CHECKSUMS.txt" -o "$publish_tmp/CHECKSUMS.txt"
-if grep -Eq '[[:space:]]aiengine-setup_linux_amd64\.tar\.gz$' "$publish_tmp/CHECKSUMS.txt"; then
-  asset_prefix="aiengine-setup"
-elif grep -Eq '[[:space:]]aiare-setup_linux_amd64\.tar\.gz$' "$publish_tmp/CHECKSUMS.txt"; then
-  # setup-v1.1.0 and older releases use the pre-rename asset prefix.
-  asset_prefix="aiare-setup"
-else
-  printf '发布校验清单中没有可识别的安装包。\n' >&2
-  exit 1
-fi
-assets="
+download_source() {
+  source_base=$1
+  rm -f -- "$publish_tmp/CHECKSUMS.txt" "$publish_tmp/latest.json"
+  curl -fL --retry 3 --connect-timeout 10 "$source_base/CHECKSUMS.txt" -o "$publish_tmp/CHECKSUMS.txt" || return 1
+  if grep -Eq '[[:space:]]aiengine-setup_linux_amd64\.tar\.gz$' "$publish_tmp/CHECKSUMS.txt"; then
+    asset_prefix="aiengine-setup"
+  elif grep -Eq '[[:space:]]aiare-setup_linux_amd64\.tar\.gz$' "$publish_tmp/CHECKSUMS.txt"; then
+    # setup-v1.1.0 and older releases use the pre-rename asset prefix.
+    asset_prefix="aiare-setup"
+  else
+    return 1
+  fi
+  assets="
 ${asset_prefix}_linux_amd64.tar.gz
 ${asset_prefix}_linux_arm64.tar.gz
 ${asset_prefix}_darwin_amd64.tar.gz
@@ -63,13 +65,29 @@ latest.json
 install.sh
 install.ps1
 "
-for asset in $assets; do
-  curl -fL --retry 3 --connect-timeout 10 "$release_url/$asset" -o "$publish_tmp/$asset"
-done
-(
-  cd "$publish_tmp"
-  sha256sum -c CHECKSUMS.txt
-)
+  for asset in $assets; do
+    curl -fL --retry 3 --connect-timeout 10 "$source_base/$asset" -o "$publish_tmp/$asset" || return 1
+  done
+  (
+    cd "$publish_tmp"
+    sha256sum -c CHECKSUMS.txt
+  ) || return 1
+}
+
+printf '下载发布资产 %s...\n' "$tag"
+if download_source "$release_url"; then
+  printf '发布源: GitHub Release\n'
+elif download_source "$asset_branch_url"; then
+  branch_tag=$(sed -n 's/.*"tag"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$publish_tmp/latest.json")
+  if [ "$branch_tag" != "$tag" ]; then
+    printf 'GitHub 备用源版本不匹配: 需要 %s，实际 %s\n' "$tag" "${branch_tag:-未知}" >&2
+    exit 1
+  fi
+  printf '发布源: GitHub setup-assets 备用分支\n'
+else
+  printf 'GitHub Release 和 setup-assets 备用分支均下载或校验失败。\n' >&2
+  exit 1
+fi
 
 mkdir -p "$WEBROOT/releases"
 if [ -e "$target" ]; then

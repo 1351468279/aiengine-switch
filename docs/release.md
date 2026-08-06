@@ -24,6 +24,16 @@ git push origin HEAD:release-v1.4.2
 
 这些入口只用于恢复未被调度或被取消的发布任务，不需要重新修改安装器代码。
 
+## 发布 GitHub 备用资产
+
+若 Actions 未调度或 GitHub Release 暂时不可用，可通过 SSH 直接更新 `setup-assets` 分支：
+
+```sh
+./deploy/publish-assets-branch.sh setup-v1.4.5
+```
+
+脚本会在隔离的临时工作树中检出指定标签，构建并校验六个平台包，然后只将当前版本资产推送到 `setup-assets` 分支。在线安装器会在 AiEngine 主下载源不可用时自动使用该分支；此路径不需要 GitHub API Token。
+
 ## 部署当前版本
 
 在 NewAPI 所在服务器的仓库目录运行：

@@ -118,7 +118,7 @@ Claude Code 的认证环境变量可能覆盖配置文件。安装时若检测�
 
 ## 非交互与排障
 
-在线脚本优先从 AiEngine 域名下载，不可用时回退到 GitHub Release。两个来源均须通过发行版 `CHECKSUMS.txt` 的 SHA-256 校验。
+在线脚本优先从 AiEngine 域名下载，不可用时回退到仓库的 `setup-assets` 备用分支。两个来源均须通过发行版 `CHECKSUMS.txt` 的 SHA-256 校验。
 
 ```sh
 # 只查看操作计划，不读取密钥、不写文件
@@ -139,7 +139,7 @@ go test ./...
 go build ./cmd/aiengine-setup
 ```
 
-推送 `setup-v*` 标签会由 GitHub Actions 测试并构建 Linux、macOS、Windows 的 amd64/arm64 发布包。工作流也支持手动触发和 `release-v*` 恢复分支，详见 [发布说明](docs/release.md)。Release 完成后，在 AiEngine 服务器执行：
+推送 `setup-v*` 标签会由 GitHub Actions 测试并构建 Linux、macOS、Windows 的 amd64/arm64 发布包。工作流也支持手动触发和 `release-v*` 恢复分支；不依赖 Actions 的 `setup-assets` 备用发布方式见 [发布说明](docs/release.md)。Release 或备用资产发布完成后，在 AiEngine 服务器执行：
 
 ```sh
 sudo ./deploy/publish.sh setup-v1.4.0

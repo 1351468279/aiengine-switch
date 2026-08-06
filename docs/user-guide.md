@@ -516,7 +516,7 @@ Remove-Item Env:CLAUDE_CODE_USE_VERTEX -ErrorAction SilentlyContinue
 
 ### 11. 下载失败或域名无法解析
 
-先在浏览器测试 `https://modelapi.aiaiaiaiai.cloud/install.sh`。在线脚本会先用 AiEngine 下载源，失败后尝试 GitHub Release，并对两者执行 SHA-256 校验。
+先在浏览器测试 `https://modelapi.aiaiaiaiai.cloud/install.sh`。在线脚本会先用 AiEngine 下载源，失败后尝试 GitHub 的 `setup-assets` 备用分支，并对两者执行 SHA-256 校验。
 
 ## 十、安全和配置说明
 
