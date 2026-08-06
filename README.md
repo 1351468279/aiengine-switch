@@ -139,7 +139,7 @@ go test ./...
 go build ./cmd/aiengine-setup
 ```
 
-推送 `setup-v*` 标签会由 GitHub Actions 测试并构建 Linux、macOS、Windows 的 amd64/arm64 发布包。Release 完成后，在 AiEngine 服务器执行：
+推送 `setup-v*` 标签会由 GitHub Actions 测试并构建 Linux、macOS、Windows 的 amd64/arm64 发布包。工作流也支持手动触发和 `release-v*` 恢复分支，详见 [发布说明](docs/release.md)。Release 完成后，在 AiEngine 服务器执行：
 
 ```sh
 sudo ./deploy/publish.sh setup-v1.4.0

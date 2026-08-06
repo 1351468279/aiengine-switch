@@ -13,6 +13,17 @@ git push origin setup-v1.4.0
 gh run watch
 ```
 
+工作流也支持两种恢复入口：
+
+- 在 GitHub Actions 页面手动运行 `Release AiEngine Setup`，输入已经存在的 `setup-v*` 标签。
+- 推送同版本的 `release-v*` 分支。例如 `release-v1.4.2` 会创建 `setup-v1.4.2` Release；对应标签必须已经存在。
+
+```sh
+git push origin HEAD:release-v1.4.2
+```
+
+这些入口只用于恢复未被调度或被取消的发布任务，不需要重新修改安装器代码。
+
 ## 部署当前版本
 
 在 NewAPI 所在服务器的仓库目录运行：
