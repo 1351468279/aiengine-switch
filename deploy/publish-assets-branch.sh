@@ -44,10 +44,10 @@ git -C "$repo_root" worktree add --detach "$source_tree" "$tag_commit"
 git clone --no-checkout "$origin_url" "$asset_repo"
 if git -C "$asset_repo" ls-remote --exit-code --heads origin "$ASSET_BRANCH" >/dev/null 2>&1; then
   git -C "$asset_repo" checkout -B "$ASSET_BRANCH" "origin/$ASSET_BRANCH"
-  git -C "$asset_repo" rm -r --ignore-unmatch .
+  git -C "$asset_repo" rm -rf --ignore-unmatch .
 else
   git -C "$asset_repo" checkout --orphan "$ASSET_BRANCH"
-  git -C "$asset_repo" rm -r --ignore-unmatch .
+  git -C "$asset_repo" rm -rf --ignore-unmatch .
 fi
 
 for asset in "$dist_dir"/aiengine-setup_*.tar.gz "$dist_dir"/aiengine-setup_*.zip \
