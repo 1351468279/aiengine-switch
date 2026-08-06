@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "setup-v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要发布的 setup 标签"
+        required: true
+        default: "setup-v1.4.0"
 
 permissions:
   contents: write
@@ -26,7 +32,7 @@ jobs:
 
       - name: Build release archives
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
           set -euo pipefail
           version="${RELEASE_TAG#setup-v}"
@@ -60,9 +66,10 @@ jobs:
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
-          gh release create "${{ github.ref_name }}" \
-            --title "AiEngine Setup ${{ github.ref_name }}" \
+          gh release create "$RELEASE_TAG" \
+            --title "AiEngine Setup $RELEASE_TAG" \
             --generate-notes \
             dist/aiengine-setup_*.tar.gz \
             dist/aiengine-setup_*.zip \
