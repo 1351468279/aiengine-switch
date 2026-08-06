@@ -20,6 +20,8 @@ tag_commit=$(git -C "$repo_root" rev-parse --verify "$tag^{commit}") || {
   exit 1
 }
 origin_url=$(git -C "$repo_root" remote get-url origin)
+author_name=$(git -C "$repo_root" config user.name)
+author_email=$(git -C "$repo_root" config user.email)
 publish_tmp=$(mktemp -d /tmp/aiengine-assets.XXXXXX)
 source_tree="$publish_tmp/source"
 asset_repo="$publish_tmp/repository"
@@ -42,6 +44,8 @@ git -C "$repo_root" worktree add --detach "$source_tree" "$tag_commit"
 )
 
 git clone --no-checkout "$origin_url" "$asset_repo"
+git -C "$asset_repo" config user.name "$author_name"
+git -C "$asset_repo" config user.email "$author_email"
 if git -C "$asset_repo" ls-remote --exit-code --heads origin "$ASSET_BRANCH" >/dev/null 2>&1; then
   git -C "$asset_repo" checkout -B "$ASSET_BRANCH" "origin/$ASSET_BRANCH"
   git -C "$asset_repo" rm -rf --ignore-unmatch .
