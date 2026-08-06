@@ -2,6 +2,8 @@ name: Release AiEngine Setup
 
 on:
   push:
+    branches:
+      - "release-v*"
     tags:
       - "setup-v*"
   workflow_dispatch:
@@ -32,9 +34,19 @@ jobs:
 
       - name: Build release archives
         env:
-          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          RELEASE_EVENT: ${{ github.event_name }}
+          RELEASE_REF: ${{ github.ref_name }}
+          RELEASE_REF_TYPE: ${{ github.ref_type }}
+          RELEASE_INPUT_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
+          if [ "$RELEASE_EVENT" = "workflow_dispatch" ]; then
+            RELEASE_TAG="$RELEASE_INPUT_TAG"
+          elif [ "$RELEASE_REF_TYPE" = "branch" ]; then
+            RELEASE_TAG="setup-v${RELEASE_REF#release-v}"
+          else
+            RELEASE_TAG="$RELEASE_REF"
+          fi
           version="${RELEASE_TAG#setup-v}"
           mkdir -p dist/work
           for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
@@ -66,8 +78,18 @@ jobs:
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          RELEASE_EVENT: ${{ github.event_name }}
+          RELEASE_REF: ${{ github.ref_name }}
+          RELEASE_REF_TYPE: ${{ github.ref_type }}
+          RELEASE_INPUT_TAG: ${{ inputs.tag }}
         run: |
+          if [ "$RELEASE_EVENT" = "workflow_dispatch" ]; then
+            RELEASE_TAG="$RELEASE_INPUT_TAG"
+          elif [ "$RELEASE_REF_TYPE" = "branch" ]; then
+            RELEASE_TAG="setup-v${RELEASE_REF#release-v}"
+          else
+            RELEASE_TAG="$RELEASE_REF"
+          fi
           gh release create "$RELEASE_TAG" \
             --title "AiEngine Setup $RELEASE_TAG" \
             --generate-notes \
