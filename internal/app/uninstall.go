@@ -44,6 +44,16 @@ func runUninstall(options commonOptions) error {
 			}
 			pending = append(pending, desktopPending...)
 			continue
+		case "hermes", "opencode", "aider":
+			genericPending, genericConflicts, genericErr := prepareGenericToolUninstall(tool, state.Tools[tool], options.force)
+			if genericErr != nil {
+				return genericErr
+			}
+			if len(genericConflicts) > 0 {
+				return fmt.Errorf("%s 配置在安装后被修改，未覆盖这些文件或字段: %s；确认要恢复安装前状态时可使用 --force", tool, strings.Join(genericConflicts, ", "))
+			}
+			pending = append(pending, genericPending...)
+			continue
 		}
 		if err != nil {
 			return err

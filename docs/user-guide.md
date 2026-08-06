@@ -1,111 +1,111 @@
 # AiEngine API 接入教程
 
-这份教程面向第一次使用命令行的用户，适用于 Windows、macOS、Linux 和 WSL。完成后，你可以让 Claude Code、Claude Desktop 或 Codex 通过 AiEngine API 工作。
+这份教程面向第一次使用命令行的用户，适用于 Windows、macOS、Linux 和 WSL。AiEngine 安装器负责配置已经安装好的客户端，不会替你安装客户端。
 
-> AiEngine 安装器只负责配置已经安装好的客户端，不会替你安装 Claude Code、Claude Desktop 或 Codex。Claude Desktop 的 AiEngine 接入目前仅支持 Windows 和 macOS。
+自动配置支持 Claude Code、Claude Desktop、Codex、Hermes Agent、OpenCode 和 Aider。Continue、Cline、Roo Code、Cherry Studio 等图形客户端，以及 Cursor 的有限接入说明，请看[主流客户端手动接入](mainstream-clients.md)。
 
-## 一、先确认你要使用什么
+## 一、开始前的准备
 
-### 1. 选择客户端
+### 1. 选择客户端和密钥
 
-| 你的需求 | 需要安装的客户端 | AiEngine 密钥要求 |
+| 客户端 | AiEngine 密钥要求 | 自动配置参数 |
 | --- | --- | --- |
-| 只用 Codex | Codex CLI | 密钥必须能访问 `gpt-5.6-sol` |
-| 用命令行版 Claude | Claude Code | 密钥必须能访问下方列出的 3 个 Claude 模型 |
-| 用桌面版 Claude | Claude Desktop（Windows/macOS） | 密钥必须能访问下方列出的 3 个 Claude 模型和原生 Messages 接口 |
-| 使用多个客户端 | 对应客户端 | 建议每个客户端准备一把密钥，分别配置 |
+| Codex | 能访问 `gpt-5.6-sol` | `codex` |
+| Claude Code | 同时拥有 3 个 Claude 模型 | `claude` |
+| Claude Desktop | 同时拥有 3 个 Claude 模型和原生 Messages 接口 | `claude-desktop` |
+| Hermes Agent | 能访问你通过 `--model` 指定的模型 | `hermes` |
+| OpenCode | 能访问你通过 `--model` 指定的模型 | `opencode` |
+| Aider | 能访问你通过 `--model` 指定的模型 | `aider` |
 
-Claude Code 密钥需要同时能访问：
+Claude Code 和 Claude Desktop 需要以下 3 个模型：
 
 - `claude-sonnet-5`
 - `claude-opus-5`
 - `claude-haiku-4-5-20251001`
 
-如果你的 AiEngine 密钥属于 GPT Pro 号池分组，它通常只能用于 Codex，不能用于 Claude。给 Claude 使用时，请在 AiEngine 控制台另外创建一把具有上述 Claude 模型权限的密钥。
+GPT Pro 号池分组密钥通常只能访问 GPT 模型。这类密钥可直接配置 Codex；配置 Hermes、OpenCode 或 Aider 时，指定 `gpt-5.6-sol`。不要用它配置 Claude Code 或 Claude Desktop，应在 AiEngine 控制台另外创建具有 Claude 模型权限的密钥。
 
-### 2. 准备 AiEngine 密钥
+不同客户端建议使用不同密钥，便于分别统计、限额和吊销。安装器要求输入密钥时，终端不会显示字符或星号，这是正常的安全设计。
 
-1. 登录 AiEngine 控制台。
-2. 打开令牌或 API 密钥页面。
-3. 按准备使用的客户端选择正确的模型分组并创建密钥。
-4. 暂时保留密钥页面，安装过程中再粘贴。
+### 2. 理解 `--model`
 
-不要把密钥发给其他人，也不要把密钥直接写进命令、聊天记录、截图或工单。安装器要求输入密钥时，屏幕上不会显示字符或星号，这是正常的安全设计。
+Hermes、OpenCode 和 Aider 可以使用任意 AiEngine 模型，因此需要告诉安装器这把密钥具体使用哪个模型。
 
-### 3. 根据系统选择终端
+```text
+GPT Pro 分组示例: gpt-5.6-sol
+Claude 分组示例:  claude-sonnet-5
+```
 
-| 系统 | 应该打开什么 | AiEngine 安装脚本 |
+模型 ID 必须与 AiEngine 控制台或 `/v1/models` 返回的内容完全一致。省略 `--model` 时，这 3 个客户端默认使用 `claude-sonnet-5`。Claude Code、Claude Desktop、Codex 使用固定模型规则，不要给它们添加 `--model`。
+
+### 3. 选择正确的终端
+
+| 系统 | 使用的终端 | AiEngine 脚本 |
 | --- | --- | --- |
-| Windows 原生 | Windows Terminal 中的 PowerShell，或 Windows PowerShell | `install.ps1` |
-| macOS | 终端 Terminal | `install.sh` |
+| Windows 原生 | Windows Terminal 中的 PowerShell | `install.ps1` |
+| macOS | Terminal/终端 | `install.sh` |
 | Linux | Terminal | `install.sh` |
-| Windows 中的 WSL | Ubuntu 等 WSL Linux 终端 | `install.sh` |
+| Windows 中的 WSL2 | Ubuntu 等 WSL 终端 | `install.sh` |
 
-Windows 用户特别注意：
+Windows 提示符以 `PS C:\...>` 开头才是 PowerShell。若是 `C:\...>`，说明当前是 CMD，不要直接运行 PowerShell 命令。
 
-- 提示符是 `PS C:\Users\你的名字>`，说明你在 PowerShell，可以继续。
-- 提示符是 `C:\Users\你的名字>`，说明你在 CMD，请先打开 PowerShell。
-- 提示符类似 `user@computer:~$`，说明你在 WSL，应按照 WSL 教程操作。
+## 二、Windows 原生教程
 
-## 二、Windows 教程
+以下命令在普通 PowerShell 中运行，不要求管理员权限。OpenCode 官方建议 Windows 用户优先使用 WSL；若你把 OpenCode 安装在 WSL 中，请跳到 WSL 章节，不要混用两套配置。
 
-以下步骤适用于直接在 Windows 中运行 Claude Code、Claude Desktop 或 Codex 的用户。全程不需要使用管理员身份。
+### 第 1 步：安装客户端
 
-### 第 1 步：打开 PowerShell
+只执行你需要的客户端安装命令。
 
-1. 点击开始菜单。
-2. 搜索 `Terminal` 或 `PowerShell`。
-3. 打开后确认左侧提示符以 `PS` 开头。
-
-不要在 CMD 中运行本节命令，也不建议使用 PowerShell ISE。
-
-### 第 2 步：安装你需要的客户端
-
-只使用 Codex，运行：
+Codex：
 
 ```powershell
 irm https://chatgpt.com/codex/install.ps1 | iex
 ```
 
-只使用 Claude Code，运行：
+Claude Code：
 
 ```powershell
 irm https://claude.ai/install.ps1 | iex
 ```
 
-两个命令行客户端都需要，就依次运行上面两条命令。安装结束后关闭当前 PowerShell，再打开一个新的 PowerShell，让系统重新读取命令路径。
+Hermes Agent：
 
-使用 Claude Desktop 时，到 [Claude 官方下载页](https://claude.com/download) 下载并安装 Windows 版本。安装后先打开一次，确认应用可以启动，然后从任务栏托盘完全退出 Claude Desktop；只关闭窗口可能仍会让应用留在后台。
+```powershell
+iex (irm https://hermes-agent.nousresearch.com/install.ps1)
+```
 
-这两条是命令行客户端的官方安装命令，可分别查看 [Codex CLI 官方文档](https://learn.chatgpt.com/docs/codex/cli) 和 [Claude Code 官方安装文档](https://code.claude.com/docs/en/installation)。
+OpenCode 原生安装需要先安装 Node.js，然后运行：
 
-### 第 3 步：确认客户端安装成功
+```powershell
+npm install -g opencode-ai
+```
 
-使用 Codex 时运行：
+Aider：
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://aider.chat/install.ps1 | iex"
+```
+
+Claude Desktop 请从 [Claude 官方下载页](https://claude.com/download) 安装。第一次打开确认程序可运行后，从任务栏托盘完全退出；只关闭窗口可能仍在后台运行。
+
+安装命令行客户端后，关闭 PowerShell，再打开一个新窗口，使系统重新读取命令路径。
+
+### 第 2 步：确认安装成功
+
+使用哪个客户端就检查哪一行：
 
 ```powershell
 codex --version
-```
-
-使用 Claude Code 时运行：
-
-```powershell
 claude --version
+hermes --version
+opencode --version
+aider --version
 ```
 
-看到版本号就可以继续。如果提示“无法识别”或“不是 cmdlet”，先关闭并重新打开 PowerShell；仍然失败时，说明对应客户端还没有正确安装。
+看到版本号即可继续。若提示“无法识别”或“不是 cmdlet”，说明客户端未正确安装，或者需要重新打开 PowerShell。Claude Desktop 没有这一步，确认应用已安装即可。
 
-Claude Desktop 没有需要检查的命令。能从开始菜单打开 Claude，且安装器稍后显示“已检测到 Claude Desktop”，就可以继续。配置前请再次完全退出应用。
-
-### 第 4 步：接入 AiEngine
-
-如果电脑上只安装了一个客户端，直接运行：
-
-```powershell
-irm https://modelapi.aiaiaiaiai.cloud/install.ps1 | iex
-```
-
-如果安装了多个客户端，或者你想明确指定本次配置哪一个，使用下面的对应命令。
+### 第 3 步：运行 AiEngine 配置
 
 只配置 Codex：
 
@@ -125,162 +125,134 @@ irm https://modelapi.aiaiaiaiai.cloud/install.ps1 | iex
 & ([scriptblock]::Create((irm https://modelapi.aiaiaiaiai.cloud/install.ps1))) -Tools claude-desktop
 ```
 
-### 第 5 步：按提示完成安装
+使用 GPT Pro 密钥配置 Hermes：
 
-安装器会显示本次配置的客户端、API 地址和安装目录，然后询问：
+```powershell
+& ([scriptblock]::Create((irm https://modelapi.aiaiaiaiai.cloud/install.ps1))) -Tools hermes -Model gpt-5.6-sol
+```
+
+使用 GPT Pro 密钥配置 OpenCode：
+
+```powershell
+& ([scriptblock]::Create((irm https://modelapi.aiaiaiaiai.cloud/install.ps1))) -Tools opencode -Model gpt-5.6-sol
+```
+
+使用 GPT Pro 密钥配置 Aider：
+
+```powershell
+& ([scriptblock]::Create((irm https://modelapi.aiaiaiaiai.cloud/install.ps1))) -Tools aider -Model gpt-5.6-sol
+```
+
+若电脑只安装了一个受支持的客户端，也可让安装器自动识别：
+
+```powershell
+irm https://modelapi.aiaiaiaiai.cloud/install.ps1 | iex
+```
+
+### 第 4 步：输入密钥
+
+安装器会显示客户端、模型、API 地址和安装目录，然后询问：
 
 ```text
 继续吗？[Y/n]
 ```
 
-1. 输入 `y` 并按回车。直接按回车也表示继续。
-2. 出现“请输入 AiEngine API 密钥”后，粘贴这次所选客户端对应的密钥。
-3. 粘贴时屏幕不会显示任何字符，这是正常现象。
-4. 按回车，等待密钥和模型权限验证。Claude Desktop 会额外发送一次最多生成 1 token 的流式测试请求。
+输入 `y` 并按回车。出现“请输入 AiEngine API 密钥”后粘贴密钥，再按回车。粘贴期间屏幕没有变化是正常的。安装器会先检查密钥和模型权限，通过后才写入配置。
 
-看到权限验证通过，并出现 `doctor` 检查命令，就表示配置成功。Claude Desktop 还会多显示一行重新打开应用的提示：
-
-```text
-API 密钥和模型权限验证通过。
-运行 ... doctor 可检查接入状态。
-```
-
-### 第 6 步：检查接入状态
-
-运行：
+### 第 5 步：检查并使用
 
 ```powershell
 & "$env:LOCALAPPDATA\AiEngine\CLISetup\bin\aiengine-setup.exe" doctor
 ```
 
-最后出现“诊断通过”就表示检查通过，括号里会显示警告数量：
-
-```text
-诊断通过（N 个警告）。
-```
-
-### 第 7 步：开始使用
-
-使用 Codex：
+出现“诊断通过”后，按需启动：
 
 ```powershell
 codex
-```
-
-使用 Claude Code：
-
-```powershell
 claude
+hermes
+opencode
+aider
 ```
 
-使用 Claude Desktop 时，重新从开始菜单打开 Claude。应用会读取 `AiEngine` 3P profile；在模型菜单中选择 AiEngine 提供的 Claude 模型后即可开始对话。
-
-建议先进入一个自己的项目目录，再启动客户端。例如：
-
-```powershell
-cd C:\Users\你的用户名\Documents\你的项目
-codex
-```
+Claude Desktop 用户重新打开应用，在模型菜单中选择 AiEngine 提供的模型。
 
 ## 三、macOS 教程
 
-Apple 芯片和 Intel 芯片都会由脚本自动识别，无需手动选择安装包。
+AiEngine 安装器本身支持 Apple 芯片和 Intel 芯片。各客户端的系统要求可能不同，例如 Hermes 官方当前主要支持 Apple Silicon；请以对应客户端的官方安装结果为准。
 
 ### 第 1 步：打开终端
 
 按 `Command + 空格`，搜索 `Terminal` 或“终端”，然后打开。
 
-### 第 2 步：安装你需要的客户端
+### 第 2 步：安装客户端
 
-只使用 Codex，运行：
+只执行需要的命令：
 
 ```sh
+# Codex
 curl -fsSL https://chatgpt.com/codex/install.sh | sh
-```
 
-只使用 Claude Code，运行：
-
-```sh
+# Claude Code
 curl -fsSL https://claude.ai/install.sh | bash
+
+# Hermes Agent
+curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
+
+# OpenCode
+curl -fsSL https://opencode.ai/install | bash
+
+# Aider
+curl -LsSf https://aider.chat/install.sh | sh
 ```
 
-两个都需要，就依次运行上面两条命令。完成后关闭终端，再打开一个新的终端。
+Claude Desktop 请从 [Claude 官方下载页](https://claude.com/download) 安装到“应用程序”。配置前使用 `Command + Q` 完全退出 Claude。
 
-使用 Claude Desktop 时，到 [Claude 官方下载页](https://claude.com/download) 下载 macOS 版本，安装到“应用程序”并打开一次。配置前按 `Command + Q` 完全退出 Claude；只点窗口左上角红色按钮并不会退出应用。
+关闭并重新打开终端，再用对应的 `--version` 命令确认 CLI 已安装。
 
-### 第 3 步：确认客户端安装成功
-
-```sh
-# 使用哪个客户端，就检查哪个；两个都用就执行两行
-codex --version
-claude --version
-```
-
-看到版本号后继续。
-
-### 第 4 步：接入 AiEngine
-
-只配置 Codex：
+### 第 3 步：接入 AiEngine
 
 ```sh
+# Codex
 curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools codex
-```
 
-只配置 Claude Code：
-
-```sh
+# Claude Code
 curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools claude
-```
 
-只配置 Claude Desktop：
-
-```sh
+# Claude Desktop，仅 macOS
 curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools claude-desktop
+
+# Hermes，GPT Pro 密钥示例
+curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools hermes --model gpt-5.6-sol
+
+# OpenCode，GPT Pro 密钥示例
+curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools opencode --model gpt-5.6-sol
+
+# Aider，GPT Pro 密钥示例
+curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools aider --model gpt-5.6-sol
 ```
 
-如果电脑上只安装了一个客户端，也可以使用自动识别命令：
+每次只执行本次要配置的一行，并输入对应密钥。若用 Claude 分组密钥配置后三个客户端，可把模型改成 `claude-sonnet-5`，或直接省略 `--model`。
 
-```sh
-curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh
-```
-
-出现提示后，输入 `y` 并回车，再粘贴对应的 AiEngine 密钥并回车。密钥输入过程没有任何屏幕显示是正常的。
-
-### 第 5 步：检查并启动
+### 第 4 步：检查并启动
 
 ```sh
 ~/.aiengine-setup/bin/aiengine-setup doctor
 ```
 
-诊断通过后，按需启动：
-
-```sh
-codex
-```
-
-或：
-
-```sh
-claude
-```
-
-Claude Desktop 用户重新打开 Claude，在模型菜单中选择 AiEngine 提供的 Claude 模型后即可开始对话。
+诊断通过后运行对应客户端命令。Claude Desktop 用户重新打开应用。
 
 ## 四、Linux 教程
 
-支持常见的 64 位 x86 和 ARM Linux。安装器会自动识别 `x86_64/amd64` 或 `arm64/aarch64`。
+AiEngine 安装器支持常见的 64 位 x86 和 ARM Linux。Claude Desktop 的 AiEngine 3P 配置不支持 Linux，其他 5 个 CLI 客户端可按本节操作。
 
-本节只配置 Claude Code 或 Codex CLI。AiEngine 的 Claude Desktop 3P 配置暂不支持 Linux；即使系统中安装了 Claude Desktop，也不要在 Linux 或 WSL 使用 `--tools claude-desktop`。
-
-### 第 1 步：打开终端并确认下载工具
-
-先运行：
+### 第 1 步：确认下载工具
 
 ```sh
 curl --version
 ```
 
-如果能看到版本信息，直接进行下一步。如果提示找不到 `curl`，可根据发行版安装：
+若系统没有 `curl`，先安装：
 
 ```sh
 # Ubuntu / Debian
@@ -293,271 +265,218 @@ sudo dnf install -y curl
 sudo pacman -S curl
 ```
 
-### 第 2 步：安装你需要的官方客户端
-
-Codex：
+### 第 2 步：安装客户端
 
 ```sh
+# Codex
 curl -fsSL https://chatgpt.com/codex/install.sh | sh
-```
 
-Claude Code：
-
-```sh
+# Claude Code
 curl -fsSL https://claude.ai/install.sh | bash
+
+# Hermes Agent
+curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
+
+# OpenCode
+curl -fsSL https://opencode.ai/install | bash
+
+# Aider
+curl -LsSf https://aider.chat/install.sh | sh
 ```
 
-只运行你需要的命令。两个客户端都需要时，两条都运行。完成后关闭终端，再打开一个新终端。
+只执行需要的命令。完成后重新打开终端，并运行相应的 `--version` 命令。
 
-### 第 3 步：确认客户端安装成功
-
-```sh
-codex --version
-claude --version
-```
-
-只需要检查你准备使用的客户端。
-
-### 第 4 步：接入 AiEngine
-
-只配置 Codex：
+### 第 3 步：接入 AiEngine
 
 ```sh
+# 固定模型客户端
 curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools codex
-```
-
-只配置 Claude Code：
-
-```sh
 curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools claude
+
+# 可选模型客户端，以下使用 GPT Pro 密钥示例
+curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools hermes --model gpt-5.6-sol
+curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools opencode --model gpt-5.6-sol
+curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools aider --model gpt-5.6-sol
 ```
 
-按提示确认并粘贴对应密钥。输入密钥时终端不显示字符是正常的。
+每次只执行需要配置的一行。按提示确认并粘贴对应密钥。
 
-### 第 5 步：检查并启动
+### 第 4 步：检查并启动
 
 ```sh
 ~/.aiengine-setup/bin/aiengine-setup doctor
 ```
 
-诊断通过后运行 `codex` 或 `claude`。
+诊断通过后，运行 `codex`、`claude`、`hermes`、`opencode` 或 `aider`。
 
-## 五、Windows WSL 教程
+## 五、Windows WSL2 教程
 
-WSL 是运行在 Windows 里的 Linux 环境。只有当 Claude Code 或 Codex 安装在 WSL 内时，才按照本节操作。不要用 Windows 的 `install.ps1` 去配置安装在 WSL 里的客户端。
+WSL 是 Windows 内的独立 Linux 环境。客户端安装在 WSL 中时，配置文件和 Windows 原生环境完全分开，必须在 WSL 终端运行 `install.sh`。
 
-Codex 建议使用 WSL2；新版本不再支持 WSL1。
+### 第 1 步：确认 WSL2
 
-### 第 1 步：安装或确认 WSL2
-
-还没有 WSL 时，以管理员身份打开 PowerShell，运行：
+在管理员 PowerShell 中安装：
 
 ```powershell
 wsl --install
 ```
 
-按系统提示重启电脑。安装完成后，从开始菜单打开 Ubuntu。
-
-已经安装 WSL 时，可在 PowerShell 中检查版本：
+已有 WSL 时检查：
 
 ```powershell
 wsl -l -v
 ```
 
-`VERSION` 一列应为 `2`。
-
-### 第 2 步：确认你已经进入 WSL
-
-在 Ubuntu/WSL 终端运行：
+目标发行版的 `VERSION` 应为 `2`。然后从开始菜单打开 Ubuntu，并确认：
 
 ```sh
 echo $WSL_DISTRO_NAME
 ```
 
-如果输出 `Ubuntu` 或其他 Linux 发行版名称，说明位置正确。后续所有命令都在这个 WSL 终端中执行，不要切回 PowerShell。
+### 第 2 步：安装客户端
 
-### 第 3 步：安装官方客户端
-
-Codex：
+在 WSL 终端中执行对应命令：
 
 ```sh
 curl -fsSL https://chatgpt.com/codex/install.sh | sh
-```
-
-Claude Code：
-
-```sh
 curl -fsSL https://claude.ai/install.sh | bash
+curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
+curl -fsSL https://opencode.ai/install | bash
+curl -LsSf https://aider.chat/install.sh | sh
 ```
 
-完成后关闭 WSL 窗口，再重新打开 Ubuntu，然后执行 `codex --version` 或 `claude --version` 检查。
+只运行需要的行。重新打开 WSL 终端后确认客户端版本。
 
-### 第 4 步：接入 AiEngine
+### 第 3 步：接入并检查
 
-只配置 Codex：
-
-```sh
-curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools codex
-```
-
-只配置 Claude Code：
+使用的 AiEngine 命令与 Linux 完全相同。例如：
 
 ```sh
-curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools claude
-```
+# OpenCode + GPT Pro 密钥
+curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools opencode --model gpt-5.6-sol
 
-### 第 5 步：检查并启动
-
-```sh
 ~/.aiengine-setup/bin/aiengine-setup doctor
+opencode
 ```
 
-诊断通过后，在 WSL 终端内运行 `codex` 或 `claude`。
+不要在 Windows PowerShell 运行 `install.ps1` 来配置 WSL 内的客户端。Claude Desktop 也不能在 WSL 中使用 `--tools claude-desktop`。
 
 ## 六、配置多个客户端
 
-AiEngine 安装器每次只配置一个客户端。这是为了让不同模型分组和不同应用使用各自的密钥，避免把 GPT 专用密钥错误地用于 Claude。Claude Code 与 Claude Desktop 可以使用同一把有权限的 Claude 密钥，但为了分别统计和单独吊销，仍建议创建两把。
+AiEngine 安装器每次只配置一个客户端。推荐流程：
 
-推荐顺序：
+1. 在 AiEngine 控制台为每个客户端创建独立密钥。
+2. 逐条运行对应的配置命令。
+3. Hermes、OpenCode、Aider 每次都填写与密钥权限一致的模型。
+4. 最后运行一次 `doctor`，统一检查全部已配置客户端。
 
-1. 先运行 Codex 配置命令，输入 GPT Pro 或其他能访问 `gpt-5.6-sol` 的密钥。
-2. 配置完成后，再按需运行 Claude Code 或 Claude Desktop 配置命令。
-3. 每次输入当前客户端对应的密钥。
-4. 最后只需要运行一次 `doctor`，它会分别检查所有已配置客户端。
-
-Windows PowerShell：
+Windows 示例：
 
 ```powershell
 & ([scriptblock]::Create((irm https://modelapi.aiaiaiaiai.cloud/install.ps1))) -Tools codex
-& ([scriptblock]::Create((irm https://modelapi.aiaiaiaiai.cloud/install.ps1))) -Tools claude
-& ([scriptblock]::Create((irm https://modelapi.aiaiaiaiai.cloud/install.ps1))) -Tools claude-desktop
+& ([scriptblock]::Create((irm https://modelapi.aiaiaiaiai.cloud/install.ps1))) -Tools opencode -Model gpt-5.6-sol
+& ([scriptblock]::Create((irm https://modelapi.aiaiaiaiai.cloud/install.ps1))) -Tools aider -Model claude-sonnet-5
 & "$env:LOCALAPPDATA\AiEngine\CLISetup\bin\aiengine-setup.exe" doctor
 ```
 
-macOS、Linux 或 WSL：
+macOS、Linux、WSL 示例：
 
 ```sh
 curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools codex
-curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools claude
-# claude-desktop 这一行仅在 macOS 执行
-curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools claude-desktop
+curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools opencode --model gpt-5.6-sol
+curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools aider --model claude-sonnet-5
 ~/.aiengine-setup/bin/aiengine-setup doctor
 ```
 
-两次运行时不要混淆密钥。出现“该密钥缺少所需模型”不是程序故障，而是当前输入的密钥不属于所选客户端需要的模型分组。
+每次命令都会单独提示输入密钥。不要把第一把密钥直接用于所有客户端。
 
-## 七、日后更换密钥
+## 七、更换密钥或模型
 
-重新执行对应客户端的安装命令即可更换密钥，不需要先卸载。安装器会重新验证新密钥，并且只更新这一个客户端的凭据。
-
-Windows：
-
-```powershell
-# 更换 Codex 密钥
-& "$env:LOCALAPPDATA\AiEngine\CLISetup\bin\aiengine-setup.exe" install --tools codex
-
-# 更换 Claude 密钥
-& "$env:LOCALAPPDATA\AiEngine\CLISetup\bin\aiengine-setup.exe" install --tools claude
-
-# 更换 Claude Desktop 密钥
-& "$env:LOCALAPPDATA\AiEngine\CLISetup\bin\aiengine-setup.exe" install --tools claude-desktop
-```
-
-macOS、Linux 或 WSL：
+重新执行对应客户端的安装命令即可，不需要先卸载。
 
 ```sh
-# 更换 Codex 密钥
-~/.aiengine-setup/bin/aiengine-setup install --tools codex
-
-# 更换 Claude 密钥
-~/.aiengine-setup/bin/aiengine-setup install --tools claude
-
-# 更换 Claude Desktop 密钥（仅 macOS）
-~/.aiengine-setup/bin/aiengine-setup install --tools claude-desktop
+# macOS/Linux/WSL：同时更换 OpenCode 的密钥和模型
+~/.aiengine-setup/bin/aiengine-setup install --tools opencode --model claude-sonnet-5
 ```
+
+```powershell
+# Windows：同时更换 OpenCode 的密钥和模型
+& "$env:LOCALAPPDATA\AiEngine\CLISetup\bin\aiengine-setup.exe" install --tools opencode --model claude-sonnet-5
+```
+
+安装器会先验证新密钥，只更新当前客户端。其他客户端的密钥和配置不受影响。
 
 ## 八、卸载 AiEngine 配置
 
-卸载只恢复 AiEngine 安装器管理的配置，不会卸载任何客户端，也不会删除 Codex 的官方登录文件。Claude Desktop 的其他 profile 和安装后新增的 profile 会保留。
+卸载不会删除客户端，只恢复 AiEngine 安装器管理的字段。
 
 Windows：
 
 ```powershell
-# 卸载全部 AiEngine 配置
+# 全部卸载
 & "$env:LOCALAPPDATA\AiEngine\CLISetup\bin\aiengine-setup.exe" uninstall --tools all
+
+# 只卸载 Hermes
+& "$env:LOCALAPPDATA\AiEngine\CLISetup\bin\aiengine-setup.exe" uninstall --tools hermes
 ```
 
 macOS、Linux 或 WSL：
 
 ```sh
-# 卸载全部 AiEngine 配置
+# 全部卸载
 ~/.aiengine-setup/bin/aiengine-setup uninstall --tools all
+
+# 只卸载 Hermes
+~/.aiengine-setup/bin/aiengine-setup uninstall --tools hermes
 ```
 
-只卸载一个客户端时，把 `all` 改为 `codex`、`claude` 或 `claude-desktop`。
-
-如果安装之后手动修改过同一批配置字段，卸载器会停止以保护你的修改。确认要恢复安装前状态时，才在命令末尾添加 `--force`。
+单独卸载时可使用 `claude`、`claude-desktop`、`codex`、`hermes`、`opencode` 或 `aider`。如果安装后手动修改了同一受管字段，卸载器会停止保护修改；确认覆盖时才添加 `--force`。
 
 ## 九、常见问题
 
 ### 1. `curl: (6) Could not resolve host: sh`
 
-原因通常是把命令写成了：
-
-```text
-curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh sh
-```
-
-网址和 `sh` 中间缺少管道符 `|`。正确命令是：
+命令缺少管道符 `|`。正确命令是：
 
 ```sh
 curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh
 ```
 
-### 2. 命令只显示了一整页脚本，没有开始安装
+### 2. Windows 出现乱码或 `﻿[CmdletBinding()]` 解析错误
 
-也是因为命令末尾缺少 `| sh` 或 `| iex`。请不要手动输入，完整复制对应系统的整行命令。
-
-### 3. Windows 出现乱码，或报错位置带有 `﻿[CmdletBinding()]`
-
-先关闭当前窗口，使用 Windows Terminal 中的 PowerShell 重新运行最新脚本。若网络缓存仍返回旧脚本，可运行带动态缓存刷新参数的命令：
+关闭旧窗口，使用 Windows Terminal 中的 PowerShell，并刷新脚本缓存：
 
 ```powershell
 irm ("https://modelapi.aiaiaiaiai.cloud/install.ps1?t=" + (Get-Date).Ticks) | iex
 ```
 
-### 4. 输入 `y` 后，还没来得及输入密钥就出现 `Access is denied`
+不要使用 PowerShell ISE，也不要把 PowerShell 命令放进 CMD。
 
-这是旧版 Windows 脚本或不兼容终端常见的问题。请关闭 PowerShell ISE，打开普通的 Windows Terminal/PowerShell，然后使用上面的带缓存刷新参数命令重试。
+### 3. 输入 `y` 后立刻出现 `Access is denied`
 
-### 5. 输入密钥时没有显示任何内容
+这通常来自旧版缓存脚本或不兼容终端。重新打开普通 PowerShell，然后运行上面的动态缓存刷新命令。
 
-这是正常现象。直接粘贴完整密钥并按回车即可。不要因为看不到字符而重复粘贴。
+### 4. 输入密钥时屏幕没有显示
 
-### 6. 提示“该密钥缺少所需模型”
+正常。粘贴一次完整密钥并按回车，不要因看不到字符而重复粘贴。
 
-当前密钥和所选客户端不匹配：
+### 5. 提示“该密钥缺少所需模型”
 
-- 配置 Codex 时，密钥必须能访问 `gpt-5.6-sol`。
-- 配置 Claude 时，密钥必须能访问本教程开头列出的 3 个 Claude 模型。
-- GPT Pro 号池分组密钥不要用于 Claude；请另建 Claude 分组密钥后重试。
+当前密钥与客户端或 `--model` 不匹配：
 
-### 7. 提示“未检测到 Claude Code、Claude Desktop 或 Codex”
+- Codex 需要 `gpt-5.6-sol`。
+- Claude Code 和 Claude Desktop 需要本教程开头列出的 3 个 Claude 模型。
+- Hermes、OpenCode、Aider 只检查指定模型；确认模型 ID 拼写和密钥分组。
 
-AiEngine 脚本不会安装客户端。先按照对应系统章节安装官方客户端，关闭并重新打开终端，然后运行：
+### 6. 提示“未检测到客户端”
 
-```text
-codex --version
-claude --version
-```
+安装器不会安装客户端。先运行对应的 `--version` 命令。客户端已安装但自动检测失败时，明确使用 `--tools` 指定；若仍提示未检测到，说明该 CLI 不在当前终端的 `PATH` 中。
 
-至少有一个命令能输出版本号后，再运行 AiEngine 安装命令。
+Claude Desktop 没有版本命令。Windows/macOS 用户可完全退出应用后明确指定 `--tools claude-desktop`。
 
-Claude Desktop 没有版本检查命令。Windows/macOS 用户确认应用已安装后，可以使用明确指定的 `--tools claude-desktop` 在线命令，不依赖自动检测。
+### 7. Claude Code 提示环境变量冲突
 
-### 8. 配置 Claude 时提示环境变量冲突
-
-以下变量会优先于 AiEngine 写入的 Claude 配置，因此安装器会主动停止：
+这些变量可能覆盖 AiEngine 配置：
 
 - `ANTHROPIC_API_KEY`
 - `ANTHROPIC_AUTH_TOKEN`
@@ -565,13 +484,13 @@ Claude Desktop 没有版本检查命令。Windows/macOS 用户确认应用已安
 - `CLAUDE_CODE_USE_FOUNDRY`
 - `CLAUDE_CODE_USE_VERTEX`
 
-只清理当前 macOS、Linux 或 WSL 终端：
+macOS、Linux、WSL 当前终端清理命令：
 
 ```sh
 unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CLAUDE_CODE_USE_BEDROCK CLAUDE_CODE_USE_FOUNDRY CLAUDE_CODE_USE_VERTEX
 ```
 
-只清理当前 Windows PowerShell：
+Windows 当前 PowerShell 清理命令：
 
 ```powershell
 Remove-Item Env:ANTHROPIC_API_KEY -ErrorAction SilentlyContinue
@@ -581,42 +500,32 @@ Remove-Item Env:CLAUDE_CODE_USE_FOUNDRY -ErrorAction SilentlyContinue
 Remove-Item Env:CLAUDE_CODE_USE_VERTEX -ErrorAction SilentlyContinue
 ```
 
-如果打开新终端后变量再次出现，还需要从 shell 启动文件或 Windows 用户环境变量中删除，再重新打开终端。
+如果新终端中变量再次出现，还需从 shell 启动文件或 Windows 用户环境变量中移除。
 
-### 9. `doctor` 报 API 验证失败
+### 8. `doctor` 报 API 验证失败
 
-常见原因是密钥已被删除、额度不足、模型权限发生变化，或者当前网络无法连接 AiEngine。先在 AiEngine 控制台确认密钥和分组，再重新执行对应客户端的 `install --tools ...` 命令更换密钥。
+常见原因是密钥被删除、额度不足、模型权限改变，或网络无法连接 AiEngine。先在 AiEngine 控制台确认密钥和分组，再重新执行该客户端的 `install --tools ...`。
 
-### 10. 下载失败或域名无法解析
+### 9. OpenCode 配置文件无法解析
 
-先测试：
+安装器读取的是标准 JSON。若现有 `opencode.json` 包含 JSONC 注释或尾随逗号，安装器会停止而不覆盖文件。先备份并改成有效 JSON，再重试。
 
-```text
-https://modelapi.aiaiaiaiai.cloud/install.sh
-```
+### 10. Claude Desktop 没有出现 AiEngine 模型
 
-能否在浏览器中打开。如果浏览器也打不开，请检查网络、DNS、代理或防火墙后重试。在线脚本会优先使用 AiEngine 下载源；主源不可用时会尝试 GitHub Release，并且两个来源都要通过 SHA-256 完整性校验。
+先完全退出再重新打开 Claude Desktop，然后运行 `doctor`。若诊断提示 `/v1/messages`、流式 SSE 或模型权限失败，说明密钥或上游分组不满足桌面版原生协议要求。
 
-### 11. Claude Desktop 配置后没有出现 AiEngine 模型
+### 11. 下载失败或域名无法解析
 
-先完全退出 Claude Desktop 再重新打开。Windows 需要同时检查任务栏托盘，macOS 使用 `Command + Q`。然后运行 `doctor`：
-
-```text
-Windows: & "$env:LOCALAPPDATA\AiEngine\CLISetup\bin\aiengine-setup.exe" doctor
-macOS:   ~/.aiengine-setup/bin/aiengine-setup doctor
-```
-
-如果诊断指出 `/v1/messages`、流式 SSE 或模型权限失败，说明当前密钥或 AiEngine 上游分组不能满足桌面版要求；这类密钥即使能通过 `/v1/models`，也不能用于 Claude Desktop。
+先在浏览器测试 `https://modelapi.aiaiaiaiai.cloud/install.sh`。在线脚本会先用 AiEngine 下载源，失败后尝试 GitHub Release，并对两者执行 SHA-256 校验。
 
 ## 十、安全和配置说明
 
-- Claude Code 和 Codex 的密钥不会出现在客户端主配置文件里。
-- Claude Desktop 的 3P gateway 协议要求密钥保存在其 AiEngine profile。安装器会在 macOS 设置 `0600` 权限，在 Windows 收紧为当前用户、管理员和系统账户可访问；安装状态只记录文件哈希，不记录密钥。
-- Claude Code、Claude Desktop 和 Codex 的密钥分开保存，互不覆盖。
-- Windows 密钥保存在当前用户的 `%LOCALAPPDATA%\AiEngine\CLISetup\credentials` 下，并通过 Windows ACL 收紧访问权限。
-- macOS、Linux 和 WSL 密钥保存在 `~/.aiengine-setup/credentials` 下，文件权限为当前用户可读写。
-- 修改客户端配置前会保留备份；安装器只合并自己需要的字段。
-- 已有 Codex 官方登录不会被读取、替换或删除。
-- 在线下载的安装包会先进行 SHA-256 校验，再运行安装器。
+- Claude Code、Codex、OpenCode 的密钥不写入客户端主配置，而是引用 AiEngine 独立凭据。
+- Hermes 与 Aider 按客户端官方配置方式使用独立 `.env` 文件；安装器将其权限限制为当前用户。
+- Claude Desktop 协议要求密钥保存在其 AiEngine profile；安装器会在 macOS 设置 `0600`，在 Windows 收紧 ACL。
+- 安装状态不保存明文密钥，只保存必要的文件状态与哈希。
+- 修改客户端配置前会保留备份，只合并 AiEngine 需要的字段。
+- Codex 的官方登录文件 `~/.codex/auth.json` 不会被读取、替换或删除。
+- 下载的安装包通过发行版 SHA-256 校验后才会运行。
 
-遇到问题需要寻求帮助时，可以提供系统类型、使用的终端、完整错误文字和 `doctor` 输出，但不要提供或截图自己的 API 密钥。
+寻求帮助时可以提供系统、终端、客户端名称、模型 ID、完整错误文字和 `doctor` 输出，但不要提供或截图 API 密钥。

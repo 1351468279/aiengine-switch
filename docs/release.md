@@ -3,13 +3,13 @@
 ## 创建发行版
 
 1. 确认 `go test ./...` 和跨平台构建通过。
-2. 创建语义化标签，例如 `setup-v1.3.0`。
+2. 创建语义化标签，例如 `setup-v1.4.0`。
 3. 推送标签，等待 `Release AiEngine Setup` 工作流完成。
 4. 检查 GitHub Release 包含六个平台压缩包、两个引导脚本、`CHECKSUMS.txt` 和 `latest.json`。
 
 ```sh
-git tag -a setup-v1.3.0 -m "AiEngine Setup 1.3.0"
-git push origin setup-v1.3.0
+git tag -a setup-v1.4.0 -m "AiEngine Setup 1.4.0"
+git push origin setup-v1.4.0
 gh run watch
 ```
 
@@ -18,7 +18,7 @@ gh run watch
 在 NewAPI 所在服务器的仓库目录运行：
 
 ```sh
-sudo ./deploy/publish.sh setup-v1.3.0
+sudo ./deploy/publish.sh setup-v1.4.0
 ```
 
 固定路径：

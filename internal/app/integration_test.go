@@ -190,7 +190,7 @@ func TestSchemaOneSharedCredentialMigratesOneToolAtATime(t *testing.T) {
 	if loaded.Tools["claude"].CredentialPath != paths.Credential || loaded.Tools["codex"].CredentialPath != paths.Credential {
 		t.Fatalf("schema 1 credential was not mapped to both tools: %#v", loaded)
 	}
-	pending, _, err := prepareInstallFiles(paths, loaded, "codex", "legacy-shared-token", "1.1.0")
+	pending, _, err := prepareInstallFiles(paths, loaded, "codex", "legacy-shared-token", CodexModel, "1.1.0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,11 +203,11 @@ func TestSchemaOneSharedCredentialMigratesOneToolAtATime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loaded.SchemaVersion != 2 || loaded.Tools["codex"].CredentialPath != paths.CodexCredential || loaded.Tools["claude"].CredentialPath != paths.Credential {
+	if loaded.SchemaVersion != stateSchema || loaded.Tools["codex"].CredentialPath != paths.CodexCredential || loaded.Tools["claude"].CredentialPath != paths.Credential {
 		t.Fatalf("first migration produced invalid state: %#v", loaded)
 	}
 
-	pending, _, err = prepareInstallFiles(paths, loaded, "claude", "legacy-shared-token", "1.1.0")
+	pending, _, err = prepareInstallFiles(paths, loaded, "claude", "legacy-shared-token", ClaudeModel, "1.1.0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -258,6 +258,135 @@ func TestInstallValidationFailureDoesNotWriteFiles(t *testing.T) {
 	}
 	assertMissing(t, paths.BaseDir)
 	assertMissing(t, paths.CodexConfig)
+}
+
+func TestGenericClientsInstallDoctorAndUninstall(t *testing.T) {
+	home := t.TempDir()
+	binDir := filepath.Join(home, "fake-bin")
+	if err := os.MkdirAll(binDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range []string{"hermes", "opencode", "aider"} {
+		writeFakeTool(t, binDir, tool, tool+" test")
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("AIENGINE_SETUP_HOME", filepath.Join(home, ".aiengine-setup"))
+	t.Setenv("HERMES_HOME", filepath.Join(home, ".hermes"))
+	t.Setenv("OPENCODE_CONFIG", filepath.Join(home, ".config", "opencode", "opencode.json"))
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	paths, err := ResolvePaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{paths.HermesConfig, paths.HermesEnv, paths.OpenCodeConfig, paths.AiderConfig} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	originalHermes := "model:\n  default: customer-hermes\nui:\n  theme: dark\n"
+	originalHermesEnv := "# customer env\nKEEP_ME=yes\nOPENAI_API_KEY='original-hermes-secret'\n"
+	originalOpenCode := `{"theme":"customer","provider":{"aiengine":{"name":"Customer provider"}}}`
+	originalAider := "dark-mode: true\n"
+	for path, data := range map[string]string{
+		paths.HermesConfig:   originalHermes,
+		paths.HermesEnv:      originalHermesEnv,
+		paths.OpenCodeConfig: originalOpenCode,
+		paths.AiderConfig:    originalAider,
+	} {
+		if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	installCases := []struct {
+		tool  string
+		model string
+		token string
+	}{
+		{tool: "hermes", model: "gpt-5.6-sol", token: "hermes-new-secret"},
+		{tool: "opencode", model: "claude-sonnet-5", token: "opencode-new-secret"},
+		{tool: "aider", model: "gpt-5.6-sol", token: "aider-new-secret"},
+	}
+	for _, test := range installCases {
+		options := commonOptions{tools: test.tool, model: test.model, yes: true, tokenStdin: true, skipAPICheck: true}
+		if err := withTestStdin(t, test.token+"\n", func() error {
+			return runInstall(options, "generic-test")
+		}); err != nil {
+			t.Fatalf("install %s: %v", test.tool, err)
+		}
+	}
+
+	stateData, err := os.ReadFile(paths.State)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range installCases {
+		if strings.Contains(string(stateData), test.token) {
+			t.Fatalf("%s token leaked into state", test.tool)
+		}
+	}
+	state, err := loadState(paths.State)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range installCases {
+		if state.Tools[test.tool] == nil || state.Tools[test.tool].Model != test.model {
+			t.Fatalf("%s model was not stored: %#v", test.tool, state.Tools[test.tool])
+		}
+	}
+	assertCredential(t, paths.HermesCredential, "hermes-new-secret")
+	assertCredential(t, paths.OpenCodeCredential, "opencode-new-secret")
+	assertCredential(t, paths.AiderCredential, "aider-new-secret")
+	assertPrivateFileContains(t, paths.HermesEnv, `OPENAI_API_KEY="hermes-new-secret"`)
+	assertPrivateFileContains(t, paths.AiderEnv, `OPENAI_API_KEY="aider-new-secret"`)
+
+	if err := runDoctor(commonOptions{skipAPICheck: true}, "generic-test"); err != nil {
+		t.Fatal(err)
+	}
+	if err := runUninstall(commonOptions{tools: "all"}); err != nil {
+		t.Fatal(err)
+	}
+	for path, wanted := range map[string]string{
+		paths.HermesConfig:   "customer-hermes",
+		paths.HermesEnv:      "original-hermes-secret",
+		paths.OpenCodeConfig: "Customer provider",
+		paths.AiderConfig:    "dark-mode: true",
+	} {
+		data, err := os.ReadFile(path)
+		if err != nil || !strings.Contains(string(data), wanted) {
+			t.Fatalf("%s was not restored: data=%s err=%v", path, data, err)
+		}
+	}
+	assertMissing(t, paths.AiderEnv)
+}
+
+func TestGenericInstallValidatesOnlySelectedModel(t *testing.T) {
+	home := t.TempDir()
+	binDir := filepath.Join(home, "fake-bin")
+	if err := os.MkdirAll(binDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	writeFakeTool(t, binDir, "aider", "aider test")
+	t.Setenv("HOME", home)
+	t.Setenv("AIENGINE_SETUP_HOME", filepath.Join(home, ".aiengine-setup"))
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"data":[{"id":"customer-model"}]}`))
+	}))
+	defer server.Close()
+	previousEndpoint := modelEndpoint
+	modelEndpoint = server.URL
+	t.Cleanup(func() { modelEndpoint = previousEndpoint })
+
+	err := withTestStdin(t, "aider-token\n", func() error {
+		return runInstall(commonOptions{tools: "aider", model: "customer-model", yes: true, tokenStdin: true}, "test")
+	})
+	if err != nil {
+		t.Fatalf("generic tool should only validate its selected model: %v", err)
+	}
 }
 
 func TestClaudeUninstallTreatsDeletedConfigAsAlreadyRemoved(t *testing.T) {
@@ -311,6 +440,17 @@ func assertCredential(t *testing.T, path, token string) {
 	}
 	if info, err := os.Stat(path); err != nil || info.Mode().Perm()&0o077 != 0 {
 		t.Fatalf("credential %s permissions are not private: info=%v err=%v", path, info, err)
+	}
+}
+
+func assertPrivateFileContains(t *testing.T, path, wanted string) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil || !strings.Contains(string(data), wanted) {
+		t.Fatalf("private file %s does not contain expected data: err=%v", path, err)
+	}
+	if info, err := os.Stat(path); err != nil || info.Mode().Perm()&0o077 != 0 {
+		t.Fatalf("private file %s permissions are not private: info=%v err=%v", path, info, err)
 	}
 }
 

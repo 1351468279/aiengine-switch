@@ -17,6 +17,17 @@ var modelEndpoint = RelayV1URL + "/models"
 var messagesEndpoint = RelayV1URL + "/messages"
 
 func validateModels(token string, tools []string) ([]string, error) {
+	var required []string
+	if containsTool(tools, "claude") || containsTool(tools, desktopTool) {
+		required = append(required, ClaudeModel, ClaudeOpusModel, ClaudeHaikuModel)
+	}
+	if containsTool(tools, "codex") {
+		required = append(required, CodexModel)
+	}
+	return validateRequiredModels(token, required)
+}
+
+func validateRequiredModels(token string, required []string) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, modelEndpoint, nil)
@@ -49,13 +60,6 @@ func validateModels(token string, tools []string) ([]string, error) {
 	available := make(map[string]bool)
 	for _, model := range payload.Data {
 		available[model.ID] = true
-	}
-	var required []string
-	if containsTool(tools, "claude") || containsTool(tools, desktopTool) {
-		required = append(required, ClaudeModel, ClaudeOpusModel, ClaudeHaikuModel)
-	}
-	if containsTool(tools, "codex") {
-		required = append(required, CodexModel)
 	}
 	var missing []string
 	for _, model := range required {

@@ -87,7 +87,7 @@ func desktopMetaValues(config map[string]any) (map[string]any, error) {
 	return map[string]any{"entries": entries, "appliedId": desktopProfileID}, nil
 }
 
-func previousDesktopFile(previous *ToolState, path string) (ManagedFileState, bool) {
+func previousManagedFile(previous *ToolState, path string) (ManagedFileState, bool) {
 	if previous == nil {
 		return ManagedFileState{}, false
 	}
@@ -105,7 +105,7 @@ func prepareDesktopJSONFields(path string, wanted map[string]any, previous *Tool
 		return desktopPreparedFile{}, err
 	}
 	fileState := ManagedFileState{Path: path, ConfigExisted: snapshot.existed, Fields: make(map[string]FieldState)}
-	previousFile, hadPrevious := previousDesktopFile(previous, path)
+	previousFile, hadPrevious := previousManagedFile(previous, path)
 	if hadPrevious {
 		fileState.ConfigExisted = previousFile.ConfigExisted
 		fileState.BackupPath = previousFile.BackupPath
@@ -145,7 +145,7 @@ func prepareDesktopProfile(path, token string, previous *ToolState) (desktopPrep
 		return desktopPreparedFile{}, err
 	}
 	fileState := ManagedFileState{Path: path, ConfigExisted: snapshot.existed, InstalledSHA256: hashBytes(data)}
-	if old, ok := previousDesktopFile(previous, path); ok {
+	if old, ok := previousManagedFile(previous, path); ok {
 		fileState.ConfigExisted = old.ConfigExisted
 		fileState.BackupPath = old.BackupPath
 	}
@@ -360,7 +360,9 @@ func prepareDesktopMetaUninstall(file ManagedFileState, force bool) (pendingFile
 }
 
 func equalStoredValue(left, right StoredValue) bool {
-	return left.Exists == right.Exists && (!left.Exists || string(left.Value) == string(right.Value))
+	leftValue, leftExists, leftErr := left.decoded()
+	_, rightExists, rightErr := right.decoded()
+	return leftErr == nil && rightErr == nil && equalStored(leftValue, leftExists, StoredValue{Exists: rightExists, Value: right.Value})
 }
 
 func prepareDesktopProfileUninstall(file ManagedFileState, force bool) (pendingFile, []string, error) {

@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
-    [ValidateSet("auto", "claude", "claude-desktop", "codex")]
+    [ValidateSet("auto", "claude", "claude-desktop", "codex", "hermes", "opencode", "aider")]
     [string]$Tools = "auto",
+    [string]$Model = "",
     [switch]$Yes,
     [switch]$TokenStdin,
     [switch]$DryRun,
@@ -66,6 +67,7 @@ try {
         throw "发布包中缺少 aiengine-setup.exe"
     }
     $BinaryArgs = @("install", "--tools", $Tools)
+    if ($Model) { $BinaryArgs += @("--model", $Model) }
     if ($Yes) { $BinaryArgs += "--yes" }
     if ($TokenStdin) { $BinaryArgs += "--token-stdin" }
     if ($DryRun) { $BinaryArgs += "--dry-run" }

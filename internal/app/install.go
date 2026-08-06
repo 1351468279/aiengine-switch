@@ -34,6 +34,10 @@ func runInstall(options commonOptions, version string) error {
 	if err != nil {
 		return err
 	}
+	model, err := modelForInstall(tool, options.model)
+	if err != nil {
+		return err
+	}
 	if tool == "claude" {
 		if err := requireNoClaudeEnvironmentConflict(); err != nil {
 			return err
@@ -42,6 +46,9 @@ func runInstall(options commonOptions, version string) error {
 
 	fmt.Printf("将配置: %s\n", toolDisplayName(tool))
 	fmt.Printf("API 地址: %s\n", RelayV1URL)
+	if genericTools[tool] {
+		fmt.Printf("模型: %s\n", model)
+	}
 	fmt.Printf("安装目录: %s\n", paths.BaseDir)
 	if tool == desktopTool {
 		fmt.Println("请先完全退出 Claude Desktop；配置完成后重新打开。")
@@ -67,7 +74,7 @@ func runInstall(options commonOptions, version string) error {
 		return err
 	}
 	if !options.skipAPICheck {
-		if _, err := validateModels(token, []string{tool}); err != nil {
+		if _, err := validateRequiredModels(token, requiredModelsForTool(tool, model)); err != nil {
 			return err
 		}
 		if tool == desktopTool {
@@ -80,19 +87,15 @@ func runInstall(options commonOptions, version string) error {
 		fmt.Println("已按要求跳过 API 验证。")
 	}
 
-	pending, nextState, err := prepareInstallFiles(paths, state, tool, token, version)
+	pending, nextState, err := prepareInstallFiles(paths, state, tool, token, model, version)
 	if err != nil {
 		return err
 	}
 	if err := commitFiles(pending); err != nil {
 		return fmt.Errorf("安装失败，已尝试恢复本次改动: %w", err)
 	}
-	if err := secureCredential(credentialPath); err != nil {
-		rollbackFiles(pending)
-		return fmt.Errorf("安装失败，已尝试恢复本次改动: %w", err)
-	}
-	if tool == desktopTool {
-		if err := secureCredential(paths.DesktopProfile); err != nil {
+	for _, secretPath := range secretPathsForTool(paths, tool) {
+		if err := secureCredential(secretPath); err != nil {
 			rollbackFiles(pending)
 			return fmt.Errorf("安装失败，已尝试恢复本次改动: %w", err)
 		}
@@ -105,7 +108,7 @@ func runInstall(options commonOptions, version string) error {
 	return nil
 }
 
-func prepareInstallFiles(paths Paths, state *State, tool, token, version string) ([]pendingFile, *State, error) {
+func prepareInstallFiles(paths Paths, state *State, tool, token, model, version string) ([]pendingFile, *State, error) {
 	now := time.Now().UTC()
 	credentialPath := paths.credentialForTool(tool)
 	previousCredentialPath := credentialPathForState(state, tool, credentialPath)
@@ -152,6 +155,7 @@ func prepareInstallFiles(paths Paths, state *State, tool, token, version string)
 		}
 		pending = append(pending, pendingFile{path: paths.ClaudeSettings, data: data, mode: mode, snapshot: snapshot})
 		toolState.CredentialPath = credentialPath
+		toolState.Model = model
 		state.Tools["claude"] = toolState
 	}
 	if tool == "codex" {
@@ -172,6 +176,7 @@ func prepareInstallFiles(paths Paths, state *State, tool, token, version string)
 		}
 		pending = append(pending, pendingFile{path: paths.CodexConfig, data: data, mode: mode, snapshot: snapshot})
 		toolState.CredentialPath = credentialPath
+		toolState.Model = model
 		state.Tools["codex"] = toolState
 	}
 	if tool == desktopTool {
@@ -180,7 +185,36 @@ func prepareInstallFiles(paths Paths, state *State, tool, token, version string)
 			return nil, nil, err
 		}
 		pending = append(pending, desktopPending...)
+		toolState.CredentialPath = credentialPath
+		toolState.Model = model
 		state.Tools[desktopTool] = toolState
+	}
+	if tool == "hermes" {
+		toolPending, toolState, err := prepareHermesInstall(paths, state.Tools[tool], token, model, now)
+		if err != nil {
+			return nil, nil, err
+		}
+		pending = append(pending, toolPending...)
+		toolState.CredentialPath = credentialPath
+		state.Tools[tool] = toolState
+	}
+	if tool == "opencode" {
+		toolPending, toolState, err := prepareOpenCodeInstall(paths, state.Tools[tool], model, now)
+		if err != nil {
+			return nil, nil, err
+		}
+		pending = append(pending, toolPending...)
+		toolState.CredentialPath = credentialPath
+		state.Tools[tool] = toolState
+	}
+	if tool == "aider" {
+		toolPending, toolState, err := prepareAiderInstall(paths, state.Tools[tool], token, model, now)
+		if err != nil {
+			return nil, nil, err
+		}
+		pending = append(pending, toolPending...)
+		toolState.CredentialPath = credentialPath
+		state.Tools[tool] = toolState
 	}
 	state.SchemaVersion = stateSchema
 	state.InstallerVersion = version
@@ -209,6 +243,19 @@ func prepareInstallFiles(paths Paths, state *State, tool, token, version string)
 	}
 	pending = append(pending, pendingFile{path: paths.State, data: stateData, mode: 0o600, snapshot: stateSnapshot})
 	return pending, state, nil
+}
+
+func secretPathsForTool(paths Paths, tool string) []string {
+	result := []string{paths.credentialForTool(tool)}
+	switch tool {
+	case desktopTool:
+		result = append(result, paths.DesktopProfile)
+	case "hermes":
+		result = append(result, paths.HermesEnv)
+	case "aider":
+		result = append(result, paths.AiderEnv)
+	}
+	return result
 }
 
 func marshalState(state *State) ([]byte, error) {

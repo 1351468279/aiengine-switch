@@ -97,11 +97,13 @@ func runDoctor(options commonOptions, version string) error {
 			checkCodexDoctor(report, toolState)
 		case desktopTool:
 			checkClaudeDesktopDoctor(report, toolState, token)
+		case "hermes", "opencode", "aider":
+			checkGenericToolDoctor(report, name, toolState)
 		default:
 			report.warn("安装状态包含未知工具 %s", name)
 		}
-		if !options.skipAPICheck && token != "" && (name == "claude" || name == desktopTool || name == "codex") {
-			if _, err := validateModels(token, []string{name}); err != nil {
+		if !options.skipAPICheck && token != "" && isSupportedTool(name) {
+			if _, err := validateRequiredModels(token, requiredModelsForTool(name, configuredModel(name, toolState))); err != nil {
 				report.fail("%s API 验证失败: %v", name, err)
 			} else if name == desktopTool {
 				if err := validateDesktopMessages(token); err != nil {
@@ -126,6 +128,10 @@ func runDoctor(options commonOptions, version string) error {
 	}
 	fmt.Printf("诊断通过（%d 个警告）。\n", report.warnings)
 	return nil
+}
+
+func isSupportedTool(name string) bool {
+	return name == "claude" || name == desktopTool || name == "codex" || genericTools[name]
 }
 
 func checkClaudeDoctor(report *doctorReport, state *ToolState) {

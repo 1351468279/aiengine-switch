@@ -17,6 +17,9 @@ type Paths struct {
 	ClaudeCredential    string
 	DesktopCredential   string
 	CodexCredential     string
+	HermesCredential    string
+	OpenCodeCredential  string
+	AiderCredential     string
 	State               string
 	BackupDir           string
 	ClaudeSettings      string
@@ -26,6 +29,11 @@ type Paths struct {
 	DesktopMeta         string
 	CodexConfig         string
 	CodexAuth           string
+	HermesConfig        string
+	HermesEnv           string
+	OpenCodeConfig      string
+	AiderConfig         string
+	AiderEnv            string
 }
 
 func ResolvePaths() (Paths, error) {
@@ -63,6 +71,20 @@ func ResolvePaths() (Paths, error) {
 	codexDir := filepath.Join(home, ".codex")
 	if configured := os.Getenv("CODEX_HOME"); configured != "" {
 		codexDir = configured
+	}
+	hermesDir := filepath.Join(home, ".hermes")
+	if configured := os.Getenv("HERMES_HOME"); configured != "" {
+		hermesDir = configured
+	}
+	openCodeConfig := ""
+	if configured := os.Getenv("OPENCODE_CONFIG"); configured != "" {
+		openCodeConfig = configured
+	} else {
+		configRoot := filepath.Join(home, ".config")
+		if configured := os.Getenv("XDG_CONFIG_HOME"); configured != "" {
+			configRoot = configured
+		}
+		openCodeConfig = filepath.Join(configRoot, "opencode", "opencode.json")
 	}
 	desktopNormalDir := ""
 	desktopThreePDir := ""
@@ -114,6 +136,9 @@ func ResolvePaths() (Paths, error) {
 		ClaudeCredential:    filepath.Join(base, "credentials", "claude-token"),
 		DesktopCredential:   filepath.Join(base, "credentials", "claude-desktop-token"),
 		CodexCredential:     filepath.Join(base, "credentials", "codex-token"),
+		HermesCredential:    filepath.Join(base, "credentials", "hermes-token"),
+		OpenCodeCredential:  filepath.Join(base, "credentials", "opencode-token"),
+		AiderCredential:     filepath.Join(base, "credentials", "aider-token"),
 		State:               filepath.Join(base, "state.json"),
 		BackupDir:           filepath.Join(base, "backups"),
 		ClaudeSettings:      filepath.Join(claudeDir, "settings.json"),
@@ -123,6 +148,11 @@ func ResolvePaths() (Paths, error) {
 		DesktopMeta:         desktopMeta,
 		CodexConfig:         filepath.Join(codexDir, "config.toml"),
 		CodexAuth:           filepath.Join(codexDir, "auth.json"),
+		HermesConfig:        filepath.Join(hermesDir, "config.yaml"),
+		HermesEnv:           filepath.Join(hermesDir, ".env"),
+		OpenCodeConfig:      openCodeConfig,
+		AiderConfig:         filepath.Join(home, ".aider.conf.yml"),
+		AiderEnv:            filepath.Join(base, "clients", "aider.env"),
 	}, nil
 }
 
@@ -156,6 +186,12 @@ func (paths Paths) credentialForTool(tool string) string {
 		return paths.DesktopCredential
 	case "codex":
 		return paths.CodexCredential
+	case "hermes":
+		return paths.HermesCredential
+	case "opencode":
+		return paths.OpenCodeCredential
+	case "aider":
+		return paths.AiderCredential
 	default:
 		return ""
 	}

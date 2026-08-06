@@ -23,7 +23,7 @@ func readJSONObject(path string) (map[string]any, fileSnapshot, error) {
 	decoder := json.NewDecoder(bytes.NewReader(snapshot.data))
 	decoder.UseNumber()
 	if err := decoder.Decode(&value); err != nil {
-		return nil, fileSnapshot{}, fmt.Errorf("解析 Claude 配置 %s: %w", path, err)
+		return nil, fileSnapshot{}, fmt.Errorf("解析 JSON 配置 %s: %w", path, err)
 	}
 	if value == nil {
 		value = map[string]any{}
@@ -60,7 +60,7 @@ func jsonPathSet(root map[string]any, path string, value any) error {
 		}
 		child, ok := next.(map[string]any)
 		if !ok {
-			return fmt.Errorf("Claude 配置字段 %s 不是对象，无法安全合并", part)
+			return fmt.Errorf("JSON 配置字段 %s 不是对象，无法安全合并", part)
 		}
 		current = child
 	}

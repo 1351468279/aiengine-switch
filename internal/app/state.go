@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"time"
 )
 
@@ -20,16 +21,23 @@ type FieldState struct {
 }
 
 type ManagedFileState struct {
-	Path            string                `json:"path"`
-	ConfigExisted   bool                  `json:"config_existed"`
-	BackupPath      string                `json:"backup_path,omitempty"`
-	Fields          map[string]FieldState `json:"fields,omitempty"`
-	InstalledSHA256 string                `json:"installed_sha256,omitempty"`
+	Path            string                      `json:"path"`
+	ConfigExisted   bool                        `json:"config_existed"`
+	BackupPath      string                      `json:"backup_path,omitempty"`
+	Fields          map[string]FieldState       `json:"fields,omitempty"`
+	SecretFields    map[string]SecretFieldState `json:"secret_fields,omitempty"`
+	InstalledSHA256 string                      `json:"installed_sha256,omitempty"`
+}
+
+type SecretFieldState struct {
+	OriginalExists  bool   `json:"original_exists"`
+	InstalledSHA256 string `json:"installed_sha256"`
 }
 
 type ToolState struct {
 	ConfigPath      string                `json:"config_path"`
 	CredentialPath  string                `json:"credential_path"`
+	Model           string                `json:"model,omitempty"`
 	ConfigExisted   bool                  `json:"config_existed"`
 	BackupPath      string                `json:"backup_path,omitempty"`
 	Fields          map[string]FieldState `json:"fields"`
@@ -73,7 +81,7 @@ func loadState(path string) (*State, error) {
 	if err := json.Unmarshal(data, &state); err != nil {
 		return nil, fmt.Errorf("安装状态损坏: %w", err)
 	}
-	if state.SchemaVersion != 1 && state.SchemaVersion != stateSchema {
+	if state.SchemaVersion != 1 && state.SchemaVersion != 2 && state.SchemaVersion != stateSchema {
 		return nil, fmt.Errorf("不支持的安装状态版本 %d", state.SchemaVersion)
 	}
 	if state.Tools == nil {
@@ -139,9 +147,12 @@ func (v StoredValue) decoded() (any, bool, error) {
 }
 
 func equalStored(value any, exists bool, expected StoredValue) bool {
-	actual, err := storedValue(value, exists)
-	if err != nil || actual.Exists != expected.Exists {
+	if exists != expected.Exists {
 		return false
 	}
-	return !actual.Exists || bytes.Equal(actual.Value, expected.Value)
+	if !exists {
+		return true
+	}
+	expectedValue, _, err := expected.decoded()
+	return err == nil && reflect.DeepEqual(value, expectedValue)
 }

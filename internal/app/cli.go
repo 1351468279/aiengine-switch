@@ -12,6 +12,7 @@ import (
 
 type commonOptions struct {
 	tools        string
+	model        string
 	dryRun       bool
 	force        bool
 	yes          bool
@@ -72,7 +73,8 @@ func newFlagSet(name string) *flag.FlagSet {
 func parseInstallOptions(args []string) (commonOptions, error) {
 	set := newFlagSet("install")
 	var options commonOptions
-	set.StringVar(&options.tools, "tools", "auto", "auto|claude|claude-desktop|codex")
+	set.StringVar(&options.tools, "tools", "auto", "auto|claude|claude-desktop|codex|hermes|opencode|aider")
+	set.StringVar(&options.model, "model", "", "Hermes、OpenCode 或 Aider 使用的模型")
 	set.BoolVar(&options.yes, "yes", false, "跳过确认")
 	set.BoolVar(&options.tokenStdin, "token-stdin", false, "从标准输入读取密钥")
 	set.BoolVar(&options.dryRun, "dry-run", false, "只显示计划")
@@ -99,7 +101,7 @@ func parseDoctorOptions(args []string) (commonOptions, error) {
 func parseUninstallOptions(args []string) (commonOptions, error) {
 	set := newFlagSet("uninstall")
 	var options commonOptions
-	set.StringVar(&options.tools, "tools", "all", "all|claude|claude-desktop|codex")
+	set.StringVar(&options.tools, "tools", "all", "all|claude|claude-desktop|codex|hermes|opencode|aider")
 	set.BoolVar(&options.force, "force", false, "覆盖冲突并恢复原值")
 	set.BoolVar(&options.dryRun, "dry-run", false, "只显示计划")
 	if err := set.Parse(args); err != nil || set.NArg() != 0 {
@@ -109,15 +111,16 @@ func parseUninstallOptions(args []string) (commonOptions, error) {
 }
 
 func printUsage(writer io.Writer) {
-	fmt.Fprintln(writer, `AiEngine Setup - 配置 Claude Code、Claude Desktop 或 Codex 接入 AiEngine API
+	fmt.Fprintln(writer, `AiEngine Setup - 配置主流 AI 客户端接入 AiEngine API
 
 用法:
-  aiengine-setup install [--tools auto|claude|claude-desktop|codex] [--token-stdin] [--dry-run]
+  aiengine-setup install [--tools auto|claude|claude-desktop|codex|hermes|opencode|aider] [--model MODEL] [--token-stdin] [--dry-run]
   aiengine-setup doctor [--skip-api-check]
-  aiengine-setup uninstall [--tools all|claude|claude-desktop|codex] [--force] [--dry-run]
+  aiengine-setup uninstall [--tools all|claude|claude-desktop|codex|hermes|opencode|aider] [--force] [--dry-run]
   aiengine-setup version
 
 每次安装只配置一个客户端；再次运行可添加另一个客户端或轮换对应密钥。
+Hermes、OpenCode 和 Aider 可用 --model 指定该密钥能访问的模型。
 安装器不会安装客户端。Claude Desktop 3P 接入仅支持 Windows 和 macOS。`)
 }
 
@@ -127,7 +130,7 @@ func detectInstallTool(selection string) (string, error) {
 		selection = "auto"
 	}
 	switch selection {
-	case "claude", "codex":
+	case "claude", "codex", "hermes", "opencode", "aider":
 		if _, err := findTool(selection); err != nil {
 			return "", fmt.Errorf("未检测到 %s，请先安装该 CLI", selection)
 		}
@@ -141,7 +144,7 @@ func detectInstallTool(selection string) (string, error) {
 		return "", fmt.Errorf("安装时一次只能配置一个客户端，请明确指定 --tools")
 	case "auto":
 		var found []string
-		for _, tool := range []string{"codex", "claude"} {
+		for _, tool := range cliTools {
 			if _, err := findTool(tool); err == nil {
 				found = append(found, tool)
 			}
@@ -151,14 +154,14 @@ func detectInstallTool(selection string) (string, error) {
 		}
 		switch len(found) {
 		case 0:
-			return "", fmt.Errorf("未检测到 Claude Code、Claude Desktop 或 Codex；请先安装客户端，Desktop 用户也可明确使用 --tools claude-desktop")
+			return "", fmt.Errorf("未检测到受支持的客户端；请先安装客户端，Desktop 用户也可明确使用 --tools claude-desktop")
 		case 1:
 			return found[0], nil
 		default:
 			return promptInstallTool(found)
 		}
 	default:
-		return "", fmt.Errorf("--tools 必须是 auto、claude、claude-desktop 或 codex")
+		return "", fmt.Errorf("--tools 必须是 auto、claude、claude-desktop、codex、hermes、opencode 或 aider")
 	}
 }
 
@@ -201,6 +204,12 @@ func toolDisplayName(tool string) string {
 		return "Claude Desktop"
 	case "codex":
 		return "Codex"
+	case "hermes":
+		return "Hermes Agent"
+	case "opencode":
+		return "OpenCode"
+	case "aider":
+		return "Aider"
 	default:
 		return tool
 	}
@@ -214,11 +223,11 @@ func detectUninstallTools(selection string, installed map[string]*ToolState) ([]
 	var requested []string
 	switch selection {
 	case "all":
-		requested = []string{"claude", desktopTool, "codex"}
-	case "claude", desktopTool, "codex":
+		requested = []string{"claude", desktopTool, "codex", "hermes", "opencode", "aider"}
+	case "claude", desktopTool, "codex", "hermes", "opencode", "aider":
 		requested = []string{selection}
 	default:
-		return nil, fmt.Errorf("--tools 必须是 all、claude、claude-desktop 或 codex")
+		return nil, fmt.Errorf("--tools 必须是 all、claude、claude-desktop、codex、hermes、opencode 或 aider")
 	}
 	var result []string
 	for _, tool := range requested {

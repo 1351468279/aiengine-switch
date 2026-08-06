@@ -1,12 +1,25 @@
 # AiEngine Setup
 
-为 AiEngine API 中转站配置现有的 Claude Code、Claude Desktop 或 Codex。用户只需运行一条在线命令并输入自己的 API 密钥，不需要安装桌面切换工具。
+AiEngine Setup 用一条在线命令，把已经安装在用户电脑上的 AI 客户端接入 AiEngine API 中转站。用户只需选择客户端、输入该客户端对应的 API 密钥；不需要安装常驻切换软件。
 
-第一次接入请阅读：[Windows、macOS、Linux、WSL 保姆级用户教程](docs/user-guide.md)。教程包含客户端安装、密钥选择、多客户端配置、验证和常见报错处理。
+第一次接入请阅读：[Windows、macOS、Linux、WSL 保姆级教程](docs/user-guide.md)。Continue、Cline、Roo Code、Cherry Studio 等图形客户端，以及 Cursor 的有限接入说明，见[主流客户端手动接入](docs/mainstream-clients.md)。
+
+## 支持范围
+
+| 客户端 | 配置方式 | 默认/必需模型 | 系统 |
+| --- | --- | --- | --- |
+| Claude Code | 自动 | `claude-sonnet-5`、`claude-opus-5`、`claude-haiku-4-5-20251001` | Windows、macOS、Linux、WSL |
+| Claude Desktop | 自动 | 上述 3 个 Claude 模型 | Windows、macOS |
+| Codex | 自动 | `gpt-5.6-sol` | Windows、macOS、Linux、WSL |
+| Hermes Agent | 自动，可用 `--model` | 默认 `claude-sonnet-5` | Windows、macOS、Linux、WSL；Hermes 自身支持范围以官方版本为准 |
+| OpenCode | 自动，可用 `--model` | 默认 `claude-sonnet-5` | Windows、macOS、Linux、WSL |
+| Aider | 自动，可用 `--model` | 默认 `claude-sonnet-5` | Windows、macOS、Linux、WSL |
+| Continue、Cline、Roo Code、Cherry Studio | 手动 | 使用密钥有权限的准确模型 ID | 取决于客户端版本 |
+| Cursor | 有限、按版本尝试，不属于正式支持 | 使用密钥有权限的标准聊天模型 | 取决于客户端是否提供 Base URL 覆盖 |
+
+安装器只配置已经安装好的客户端，不负责安装客户端本身。每次只配置一个客户端，以免把 GPT 分组密钥误用于 Claude，或让不同客户端共享同一把不便吊销的密钥。
 
 ## 一键接入
-
-开始前请先安装至少一个目标客户端，并在 AiEngine 控制台创建 API 密钥。Claude Desktop 接入仅支持 Windows 和 macOS。
 
 macOS、Linux 或 WSL：
 
@@ -20,28 +33,56 @@ Windows PowerShell：
 irm https://modelapi.aiaiaiaiai.cloud/install.ps1 | iex
 ```
 
-安装器每次只配置一个客户端。如果只检测到一个客户端，会直接选择它；检测到多个时会要求选择本次配置哪一个。确认后在本机隐藏输入密钥，并只验证该客户端需要的模型。Claude Desktop 还会对原生 `/v1/messages` 流式接口发起一次最小请求，确认网关确实可用。
+如果只检测到一个支持的客户端，安装器会直接选择它；检测到多个时会显示选择菜单。确认后，密钥会在本机隐藏输入，并在写配置前验证对应模型权限。
 
-不同客户端使用不同权限的密钥时，请为每个客户端分别运行一次安装命令。Claude Code、Claude Desktop 和 Codex 的配置与密钥会独立保存，互不覆盖。
+建议明确指定客户端。以 GPT Pro 分组密钥配置 Hermes、OpenCode 或 Aider 时，还应明确指定该密钥可访问的模型：
 
-## 安装器做什么
+macOS、Linux 或 WSL：
 
-- Claude Code：合并修改 `~/.claude/settings.json`（或 `CLAUDE_CONFIG_DIR`），配置 AiEngine 地址、默认模型和 `apiKeyHelper`。
-- Codex：合并修改 `~/.codex/config.toml`（或 `CODEX_HOME`），添加 `aiengine` Responses provider 和凭据命令。
-- Claude Desktop：切换到 Claude 的 3P inference gateway 模式，创建独立的 `AiEngine` profile，并保留其他 profile。
-- 密钥：三个客户端分别使用独立凭据。Claude Code 和 Codex 的密钥不进入客户端主配置；Claude Desktop 的协议要求密钥存在于其 3P profile 中，安装器会在 macOS 设置 `0600` 权限、在 Windows 收紧 ACL，且密钥不会进入安装状态。
-- 备份：首次修改前保留原配置；卸载时只恢复本工具管理且未被用户再次修改的字段。
-- Codex 登录：不会读取或修改 `~/.codex/auth.json`，官方登录状态会保留。
+```sh
+# Codex
+curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools codex
 
-默认模型：
+# Hermes，使用 GPT Pro 分组
+curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools hermes --model gpt-5.6-sol
 
-| 客户端 | 模型 |
+# OpenCode，使用 GPT Pro 分组
+curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools opencode --model gpt-5.6-sol
+
+# Aider，使用 GPT Pro 分组
+curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools aider --model gpt-5.6-sol
+```
+
+Windows PowerShell：
+
+```powershell
+# Codex
+& ([scriptblock]::Create((irm https://modelapi.aiaiaiaiai.cloud/install.ps1))) -Tools codex
+
+# Hermes，使用 GPT Pro 分组
+& ([scriptblock]::Create((irm https://modelapi.aiaiaiaiai.cloud/install.ps1))) -Tools hermes -Model gpt-5.6-sol
+
+# OpenCode，使用 GPT Pro 分组
+& ([scriptblock]::Create((irm https://modelapi.aiaiaiaiai.cloud/install.ps1))) -Tools opencode -Model gpt-5.6-sol
+
+# Aider，使用 GPT Pro 分组
+& ([scriptblock]::Create((irm https://modelapi.aiaiaiaiai.cloud/install.ps1))) -Tools aider -Model gpt-5.6-sol
+```
+
+`--model`/`-Model` 必须填写 NewAPI 返回的准确模型 ID。Hermes、OpenCode 和 Aider 未指定时默认使用 `claude-sonnet-5`；它们只验证所选的一个模型。Claude Code、Claude Desktop 和 Codex 的模型由 AiEngine 固定，不接受 `--model`。
+
+## 安装器会修改什么
+
+| 客户端 | 受管配置 |
 | --- | --- |
-| Claude Code | `claude-sonnet-5` |
-| Claude Code Opus | `claude-opus-5` |
-| Claude Code Haiku | `claude-haiku-4-5-20251001` |
-| Claude Desktop | 上述 3 个 Claude 模型 |
-| Codex | `gpt-5.6-sol` |
+| Claude Code | `~/.claude/settings.json` 或 `CLAUDE_CONFIG_DIR`，以及独立凭据 |
+| Claude Desktop | 独立 `AiEngine` 3P inference profile；保留其他 profile |
+| Codex | `~/.codex/config.toml` 或 `CODEX_HOME`，以及独立凭据；不修改 `auth.json` |
+| Hermes | `~/.hermes/config.yaml` 与 `~/.hermes/.env`，支持 `HERMES_HOME` |
+| OpenCode | `~/.config/opencode/opencode.json` 或 `OPENCODE_CONFIG`，以及独立凭据 |
+| Aider | `~/.aider.conf.yml` 与 AiEngine 安装目录内的独立环境文件 |
+
+安装器会在第一次修改前备份原文件，只合并自己管理的字段，并为凭据文件设置仅当前用户可读的权限。卸载时只恢复受管字段；若这些字段在安装后又被用户修改，默认停止并报告冲突。
 
 ## 日常命令
 
@@ -49,9 +90,8 @@ macOS、Linux 和 WSL：
 
 ```sh
 ~/.aiengine-setup/bin/aiengine-setup doctor
-~/.aiengine-setup/bin/aiengine-setup install --tools codex
-~/.aiengine-setup/bin/aiengine-setup install --tools claude
-~/.aiengine-setup/bin/aiengine-setup install --tools claude-desktop # 仅 macOS
+~/.aiengine-setup/bin/aiengine-setup install --tools opencode --model gpt-5.6-sol
+~/.aiengine-setup/bin/aiengine-setup uninstall --tools opencode
 ~/.aiengine-setup/bin/aiengine-setup uninstall --tools all
 ```
 
@@ -59,71 +99,53 @@ Windows PowerShell：
 
 ```powershell
 & "$env:LOCALAPPDATA\AiEngine\CLISetup\bin\aiengine-setup.exe" doctor
-& "$env:LOCALAPPDATA\AiEngine\CLISetup\bin\aiengine-setup.exe" install --tools codex
-& "$env:LOCALAPPDATA\AiEngine\CLISetup\bin\aiengine-setup.exe" install --tools claude
-& "$env:LOCALAPPDATA\AiEngine\CLISetup\bin\aiengine-setup.exe" install --tools claude-desktop
+& "$env:LOCALAPPDATA\AiEngine\CLISetup\bin\aiengine-setup.exe" install --tools opencode --model gpt-5.6-sol
+& "$env:LOCALAPPDATA\AiEngine\CLISetup\bin\aiengine-setup.exe" uninstall --tools opencode
 & "$env:LOCALAPPDATA\AiEngine\CLISetup\bin\aiengine-setup.exe" uninstall --tools all
 ```
 
-再次对同一客户端执行 `install` 可轮换它的密钥。安装不支持 `--tools all`，必须一次配置一个客户端；卸载仍可使用 `--tools all`。`doctor` 会分别检查每个客户端的应用或 CLI、配置、凭据权限和远端模型可用性。
+再次执行同一客户端的 `install` 可轮换它的密钥或模型。`doctor` 会检查每个已配置客户端的程序、配置、凭据权限和远端模型权限。确认要覆盖安装后对受管字段所做的修改时，才使用 `uninstall --force`。
 
-卸载默认采用冲突保护：如果受管字段在安装后被手动修改，安装器会停止并说明冲突。确认要恢复安装前值时才使用 `uninstall --force`。用户的其他配置和首次安装备份都会保留。
+## 密钥与模型
 
-## 环境变量冲突
+- GPT Pro 号池密钥通常应配置 Codex，或为 Hermes、OpenCode、Aider 指定 `--model gpt-5.6-sol`。
+- Claude Code 和 Claude Desktop 的密钥必须同时拥有表格中的 3 个 Claude 模型。
+- Hermes、OpenCode 和 Aider 可以使用任意 AiEngine 密钥，但 `--model` 必须与该密钥实际权限一致。
+- 不同客户端建议分别创建密钥，便于统计、限额和单独吊销。
+- 不要把真实密钥直接写进命令、脚本、工单、截图或日志。
 
-Claude Code 的认证环境变量优先级可能高于配置文件。安装时若检测到 `ANTHROPIC_API_KEY`、`ANTHROPIC_AUTH_TOKEN`、Bedrock、Vertex 或 Foundry 相关变量，安装器会停止并列出冲突；请从当前终端及 shell 启动文件中移除后重试。
+Claude Code 的认证环境变量可能覆盖配置文件。安装时若检测到 `ANTHROPIC_API_KEY`、`ANTHROPIC_AUTH_TOKEN`、Bedrock、Vertex 或 Foundry 变量，安装器会停止并列出冲突。
 
 ## 非交互与排障
 
-在线脚本优先从 AiEngine 域名下载，并在不可用时回退到 GitHub Release。两个来源都必须通过发行版 `CHECKSUMS.txt` 的 SHA-256 校验。
-
-安装器目录和可执行文件可分别通过 `AIENGINE_SETUP_HOME`、`AIENGINE_SETUP_BINARY` 覆盖。旧版使用的 `AIARE_SETUP_HOME`、`AIARE_SETUP_BINARY` 仅为兼容已有安装而保留，新部署请使用 AiEngine 字段。
-
-可用参数：
+在线脚本优先从 AiEngine 域名下载，不可用时回退到 GitHub Release。两个来源均须通过发行版 `CHECKSUMS.txt` 的 SHA-256 校验。
 
 ```sh
-# 仅查看将执行的操作，不读取密钥、不写文件
-curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --dry-run
+# 只查看操作计划，不读取密钥、不写文件
+curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools aider --model gpt-5.6-sol --dry-run
 
-# 在线安装时明确选择 Codex；Claude Code 使用 --tools claude
-curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools codex
-
-# macOS 上配置 Claude Desktop；运行前先完全退出 Claude Desktop
-curl -fsSL https://modelapi.aiaiaiaiai.cloud/install.sh | sh -s -- --tools claude-desktop
-
-# 自动确认，并从标准输入读取密钥（仅建议在受控自动化环境使用）
-printf '%s\n' "$AIENGINE_API_KEY" | ~/.aiengine-setup/bin/aiengine-setup install --tools codex --yes --token-stdin
+# 受控自动化中从标准输入读取密钥
+printf '%s\n' "$AIENGINE_API_KEY" | ~/.aiengine-setup/bin/aiengine-setup install --tools aider --model gpt-5.6-sol --yes --token-stdin
 ```
 
-PowerShell 在线安装也可明确选择客户端：
-
-```powershell
-& ([scriptblock]::Create((irm https://modelapi.aiaiaiaiai.cloud/install.ps1))) -Tools codex
-
-# Windows 上配置 Claude Desktop；运行前先完全退出 Claude Desktop
-& ([scriptblock]::Create((irm https://modelapi.aiaiaiaiai.cloud/install.ps1))) -Tools claude-desktop
-```
-
-不要把真实密钥直接写进命令、脚本、工单或日志。安装器内部的 `credential print` 命令只供 Claude Code 和 Codex 的认证辅助机制调用。
+安装器目录和可执行文件可通过 `AIENGINE_SETUP_HOME`、`AIENGINE_SETUP_BINARY` 覆盖。旧版的 `AIARE_SETUP_HOME`、`AIARE_SETUP_BINARY` 仅为已有安装兼容而保留。
 
 ## 开发与发布
 
-本地要求 Go 1.22 或更高版本：
+要求 Go 1.22 或更高版本：
 
 ```sh
 go test ./...
 go build ./cmd/aiengine-setup
 ```
 
-推送 `setup-v*` 标签会由 GitHub Actions 测试并构建 Linux、macOS、Windows 的 amd64/arm64 发布包。Release 完成后，在 AiEngine 服务器执行一次：
+推送 `setup-v*` 标签会由 GitHub Actions 测试并构建 Linux、macOS、Windows 的 amd64/arm64 发布包。Release 完成后，在 AiEngine 服务器执行：
 
 ```sh
-sudo ./deploy/publish.sh setup-v1.3.0
+sudo ./deploy/publish.sh setup-v1.4.0
 ```
 
-发布脚本会下载并校验全部资产，通过原子符号链接切换 `current`，校验 Nginx 后重载；失败时恢复原入口。详细发布步骤见 [docs/release.md](docs/release.md)。
-
-已有旧版 CLI 安装会继续使用原安装目录，并在再次运行安装器时迁移受管的 Codex provider；无需手动清理旧配置。
+详细步骤见 [docs/release.md](docs/release.md)。
 
 ## 许可证
 
