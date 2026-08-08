@@ -518,6 +518,49 @@ Remove-Item Env:CLAUDE_CODE_USE_VERTEX -ErrorAction SilentlyContinue
 
 先在浏览器测试 `https://modelapi.aiaiaiaiai.cloud/install.sh`。在线脚本会先用 AiEngine 下载源，失败后尝试 GitHub 的 `setup-assets` 备用分支，并对两者执行 SHA-256 校验。
 
+### 12. Codex 的旧历史会话看起来消失了
+
+AiEngine 安装器不会删除 Codex 的 `sessions` 目录、`history.jsonl`、SQLite 数据库或 `auth.json`。Codex 的历史会话可能与会话创建时的 `model_provider` ID 关联；如果旧配置使用 `OpenAI`，而旧版 AiEngine 安装器改成了 `aiengine`，文件仍在磁盘上，但当前列表可能不显示。
+
+遇到这种情况按以下顺序处理：
+
+1. 完全退出 Codex。Windows 用户关闭所有 Codex 窗口；macOS 用户使用 `Command + Q`；Linux/WSL 用户退出正在运行的 `codex` 命令。
+2. 重新运行最新 AiEngine 安装命令，只配置 Codex。新版安装器会优先沿用现有合法 provider ID，并在必要时从历史会话元数据中识别旧 ID。
+
+   Windows PowerShell：
+
+   ```powershell
+   & ([scriptblock]::Create((irm ("https://modelapi.aiaiaiaiai.cloud/install.ps1?t=" + (Get-Date).Ticks)))) -Tools codex
+   ```
+
+   macOS、Linux 或 WSL：
+
+   ```sh
+   curl -fsSL "https://modelapi.aiaiaiaiai.cloud/install.sh?t=$(date +%s)" | sh -s -- --tools codex
+   ```
+
+3. 安装结束后运行 `doctor`，确认当前 provider 与历史 provider 的诊断结果。
+4. 再启动 Codex，检查历史会话列表。
+
+只检查历史文件是否仍在磁盘上时，不要在 Codex 运行期间编辑任何文件。Windows PowerShell 使用：
+
+```powershell
+if ($env:CODEX_HOME) {
+  Get-ChildItem "$env:CODEX_HOME\sessions" -File -Recurse -ErrorAction SilentlyContinue
+} else {
+  Get-ChildItem "$env:USERPROFILE\.codex\sessions" -File -Recurse -ErrorAction SilentlyContinue
+}
+```
+
+macOS、Linux 或 WSL 使用：
+
+```sh
+codex_home="${CODEX_HOME:-$HOME/.codex}"
+find "$codex_home/sessions" -type f -name '*.jsonl' -print 2>/dev/null
+```
+
+如果这些文件存在但历史仍不显示，请把 `doctor` 的完整输出和系统/客户端版本发给管理员；不要发送 API 密钥、会话 JSONL 内容或数据库文件，也不要手动修改 Codex SQLite 数据库。
+
 ## 十、安全和配置说明
 
 - Claude Code、Codex、OpenCode 的密钥不写入客户端主配置，而是引用 AiEngine 独立凭据。
@@ -525,6 +568,7 @@ Remove-Item Env:CLAUDE_CODE_USE_VERTEX -ErrorAction SilentlyContinue
 - Claude Desktop 协议要求密钥保存在其 AiEngine profile；安装器会在 macOS 设置 `0600`，在 Windows 收紧 ACL。
 - 安装状态不保存明文密钥，只保存必要的文件状态与哈希。
 - 修改客户端配置前会保留备份，只合并 AiEngine 需要的字段。
+- 安装器不会修改 Codex 的 `sessions`、`history.jsonl`、SQLite 数据库或会话内容；它只读会话元数据中的 provider ID，用于兼容历史列表。
 - Codex 的官方登录文件 `~/.codex/auth.json` 不会被读取、替换或删除。
 - 下载的安装包通过发行版 SHA-256 校验后才会运行。
 

@@ -1,9 +1,13 @@
 package app
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -12,6 +16,8 @@ import (
 )
 
 var tomlTablePattern = regexp.MustCompile(`^\s*\[([^]]+)]\s*(?:#.*)?$`)
+var codexProviderHeadingPattern = regexp.MustCompile(`^\s*\[model_providers\.([A-Za-z0-9_-]+)]\s*(?:#.*)?$`)
+var codexProviderIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 func parseTOML(data []byte, path string) (map[string]any, error) {
 	if len(bytes.TrimSpace(data)) == 0 {
@@ -27,10 +33,10 @@ func parseTOML(data []byte, path string) (map[string]any, error) {
 	return value, nil
 }
 
-func codexValues() map[string]any {
+func codexValues(providerID string) map[string]any {
 	return map[string]any{
 		"model":                    CodexModel,
-		"model_provider":           codexProviderID,
+		"model_provider":           providerID,
 		"model_reasoning_effort":   "high",
 		"disable_response_storage": true,
 	}
@@ -149,18 +155,34 @@ func extractProviderBlock(text, providerID string) (before, block string, found 
 }
 
 func providerIDFromBlock(block string) string {
-	for _, providerID := range []string{codexProviderID, legacyProviderID} {
-		for _, line := range splitLines(block) {
-			root, _ := providerHeading(line, providerID)
-			if root {
-				return providerID
-			}
+	for _, line := range splitLines(block) {
+		match := codexProviderHeadingPattern.FindStringSubmatch(line)
+		if match != nil && validCodexProviderID(match[1]) {
+			return match[1]
 		}
 	}
 	return codexProviderID
 }
 
-func codexProviderBlock(paths Paths) string {
+func providerIDFromState(state *ToolState) string {
+	if state != nil && validCodexProviderID(state.ProviderID) {
+		return state.ProviderID
+	}
+	if state != nil {
+		return providerIDFromBlock(state.InstalledBlock)
+	}
+	return codexProviderID
+}
+
+func validCodexProviderID(providerID string) bool {
+	return providerID != "" && codexProviderIDPattern.MatchString(providerID)
+}
+
+func reusableCodexProviderID(providerID string) bool {
+	return validCodexProviderID(providerID) && providerID != codexBuiltinProviderID && providerID != legacyProviderID
+}
+
+func codexProviderBlock(paths Paths, providerID string) string {
 	command, _ := tomlScalar(paths.Binary)
 	return fmt.Sprintf(`[model_providers.%s]
 name = "AiEngine NewAPI"
@@ -172,7 +194,7 @@ command = %s
 args = ["credential", "print", "codex"]
 timeout_ms = 5000
 refresh_interval_ms = 0
-`, codexProviderID, RelayV1URL, codexProviderID, command)
+`, providerID, RelayV1URL, providerID, command)
 }
 
 func appendProviderBlock(text, block string) string {
@@ -192,6 +214,161 @@ func providerExists(parsed map[string]any, providerID string) bool {
 	return ok
 }
 
+type codexSessionMeta struct {
+	ModelProvider   string `json:"model_provider"`
+	ModelProviderID string `json:"model_provider_id"`
+	ThreadSettings  struct {
+		ModelProviderID string `json:"model_provider_id"`
+	} `json:"thread_settings"`
+}
+
+type codexSessionEvent struct {
+	Type            string           `json:"type"`
+	ModelProvider   string           `json:"model_provider"`
+	ModelProviderID string           `json:"model_provider_id"`
+	Payload         codexSessionMeta `json:"payload"`
+}
+
+func codexProviderFromSessionLine(line []byte) string {
+	var event codexSessionEvent
+	if err := json.Unmarshal(line, &event); err != nil {
+		return ""
+	}
+	providerID := event.Payload.ModelProvider
+	if providerID == "" {
+		providerID = event.Payload.ModelProviderID
+	}
+	if providerID == "" {
+		providerID = event.Payload.ThreadSettings.ModelProviderID
+	}
+	if providerID == "" {
+		providerID = event.ModelProvider
+	}
+	if providerID == "" {
+		providerID = event.ModelProviderID
+	}
+	if event.Type != "session_meta" && providerID == "" {
+		return ""
+	}
+	if !reusableCodexProviderID(providerID) {
+		return ""
+	}
+	return providerID
+}
+
+func codexHistoryProviderCounts(paths Paths) (map[string]int, error) {
+	counts := make(map[string]int)
+	if paths.CodexSessions == "" {
+		return counts, nil
+	}
+	info, err := os.Stat(paths.CodexSessions)
+	if errors.Is(err, os.ErrNotExist) {
+		return counts, nil
+	}
+	if err != nil {
+		return counts, err
+	}
+	if !info.IsDir() {
+		return counts, fmt.Errorf("Codex 历史路径不是目录: %s", paths.CodexSessions)
+	}
+
+	var firstErr error
+	err = filepath.WalkDir(paths.CodexSessions, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			if firstErr == nil {
+				firstErr = walkErr
+			}
+			return nil
+		}
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".jsonl" {
+			return nil
+		}
+		file, openErr := os.Open(path)
+		if openErr != nil {
+			if firstErr == nil {
+				firstErr = openErr
+			}
+			return nil
+		}
+		scanner := bufio.NewScanner(file)
+		scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
+		for scanner.Scan() {
+			if providerID := codexProviderFromSessionLine(scanner.Bytes()); providerID != "" {
+				counts[providerID]++
+			}
+		}
+		if scanErr := scanner.Err(); scanErr != nil && firstErr == nil {
+			firstErr = scanErr
+		}
+		if closeErr := file.Close(); closeErr != nil && firstErr == nil {
+			firstErr = closeErr
+		}
+		return nil
+	})
+	if err != nil && firstErr == nil {
+		firstErr = err
+	}
+	return counts, firstErr
+}
+
+func sortedCodexProviderIDs(counts map[string]int) []string {
+	providerIDs := make([]string, 0, len(counts))
+	for providerID := range counts {
+		providerIDs = append(providerIDs, providerID)
+	}
+	sort.Slice(providerIDs, func(i, j int) bool {
+		left, right := counts[providerIDs[i]], counts[providerIDs[j]]
+		if left != right {
+			return left > right
+		}
+		if providerIDs[i] == "OpenAI" {
+			return true
+		}
+		if providerIDs[j] == "OpenAI" {
+			return false
+		}
+		return providerIDs[i] < providerIDs[j]
+	})
+	return providerIDs
+}
+
+func historyCodexProviderID(paths Paths) string {
+	counts, _ := codexHistoryProviderCounts(paths)
+	providerIDs := sortedCodexProviderIDs(counts)
+	if len(providerIDs) == 0 {
+		return ""
+	}
+	return providerIDs[0]
+}
+
+func selectCodexProviderID(paths Paths, parsed map[string]any, previous *ToolState) string {
+	if previous != nil {
+		// New state records are authoritative. Older state files did not record
+		// ProviderID, so their generated aiengine/aiare provider must not hide
+		// the provider ID stored in existing session metadata.
+		if previous.ProviderID != "" && reusableCodexProviderID(previous.ProviderID) {
+			return previous.ProviderID
+		}
+		if previous.ProviderID == "" {
+			previousID := providerIDFromBlock(previous.InstalledBlock)
+			if reusableCodexProviderID(previousID) && previousID != codexProviderID {
+				return previousID
+			}
+		}
+	}
+	currentID, currentOK := parsed["model_provider"].(string)
+	if currentOK && reusableCodexProviderID(currentID) && currentID != codexProviderID {
+		return currentID
+	}
+	if historyID := historyCodexProviderID(paths); historyID != "" {
+		return historyID
+	}
+	if currentOK && reusableCodexProviderID(currentID) {
+		return currentID
+	}
+	return codexProviderID
+}
+
 func prepareCodexInstall(paths Paths, previous *ToolState) ([]byte, fileSnapshot, *ToolState, error) {
 	snapshot, err := snapshotFile(paths.CodexConfig)
 	if err != nil {
@@ -205,31 +382,43 @@ func prepareCodexInstall(paths Paths, previous *ToolState) ([]byte, fileSnapshot
 		return nil, fileSnapshot{}, nil, err
 	}
 	text := string(snapshot.data)
-	managedProviderID := codexProviderID
+	managedProviderID := selectCodexProviderID(paths, parsed, previous)
+	sourceProviderID := managedProviderID
 	if previous != nil {
-		managedProviderID = providerIDFromBlock(previous.InstalledBlock)
+		previousProviderID := previous.ProviderID
+		if previousProviderID == "" {
+			previousProviderID = providerIDFromBlock(previous.InstalledBlock)
+		}
+		if previousProviderID == legacyProviderID || previousProviderID == codexProviderID {
+			// Remove the provider generated by an older installer while allowing
+			// session history to choose the ID used by the user's old sessions.
+			sourceProviderID = previousProviderID
+		} else if reusableCodexProviderID(previousProviderID) {
+			sourceProviderID = previousProviderID
+			managedProviderID = previousProviderID
+		}
 	}
-	withoutProvider, oldBlock, blockFound, err := extractProviderBlock(text, managedProviderID)
+	withoutProvider, oldBlock, blockFound, err := extractProviderBlock(text, sourceProviderID)
 	if err != nil {
 		return nil, fileSnapshot{}, nil, err
 	}
-	if providerExists(parsed, managedProviderID) && !blockFound {
-		return nil, fileSnapshot{}, nil, fmt.Errorf("已有 %s provider 使用了无法安全编辑的内联或点号语法", managedProviderID)
+	if providerExists(parsed, sourceProviderID) && !blockFound {
+		return nil, fileSnapshot{}, nil, fmt.Errorf("已有 %s provider 使用了无法安全编辑的内联或点号语法", sourceProviderID)
 	}
-	if managedProviderID != codexProviderID {
-		parsedWithoutLegacy, err := parseTOML([]byte(withoutProvider), paths.CodexConfig)
+	if sourceProviderID != managedProviderID {
+		parsedWithoutSource, err := parseTOML([]byte(withoutProvider), paths.CodexConfig)
 		if err != nil {
 			return nil, fileSnapshot{}, nil, err
 		}
-		_, _, currentFound, err := extractProviderBlock(withoutProvider, codexProviderID)
+		_, _, currentFound, err := extractProviderBlock(withoutProvider, managedProviderID)
 		if err != nil {
 			return nil, fileSnapshot{}, nil, err
 		}
-		if currentFound || providerExists(parsedWithoutLegacy, codexProviderID) {
-			return nil, fileSnapshot{}, nil, fmt.Errorf("迁移旧配置时发现已有 %s provider，请先处理该配置", codexProviderID)
+		if currentFound || providerExists(parsedWithoutSource, managedProviderID) {
+			return nil, fileSnapshot{}, nil, fmt.Errorf("迁移旧配置时发现已有 %s provider，请先处理该配置", managedProviderID)
 		}
 	}
-	state := &ToolState{ConfigPath: paths.CodexConfig, ConfigExisted: snapshot.existed, Fields: make(map[string]FieldState)}
+	state := &ToolState{ConfigPath: paths.CodexConfig, ProviderID: managedProviderID, ConfigExisted: snapshot.existed, Fields: make(map[string]FieldState)}
 	if previous != nil {
 		state.ConfigExisted = previous.ConfigExisted
 		state.BackupPath = previous.BackupPath
@@ -241,8 +430,9 @@ func prepareCodexInstall(paths Paths, previous *ToolState) ([]byte, fileSnapshot
 	}
 	keys := append([]string(nil), managedCodexFields...)
 	sort.Strings(keys)
+	wantedValues := codexValues(managedProviderID)
 	for _, key := range keys {
-		wanted := codexValues()[key]
+		wanted := wantedValues[key]
 		current, exists := parsed[key]
 		original, err := storedValue(current, exists)
 		if err != nil {
@@ -261,7 +451,7 @@ func prepareCodexInstall(paths Paths, previous *ToolState) ([]byte, fileSnapshot
 			return nil, fileSnapshot{}, nil, err
 		}
 	}
-	state.InstalledBlock = codexProviderBlock(paths)
+	state.InstalledBlock = codexProviderBlock(paths, managedProviderID)
 	result := appendProviderBlock(withoutProvider, state.InstalledBlock)
 	if _, err := parseTOML([]byte(result), paths.CodexConfig); err != nil {
 		return nil, fileSnapshot{}, nil, fmt.Errorf("生成的 Codex 配置无效: %w", err)
@@ -281,7 +471,7 @@ func prepareCodexUninstall(state *ToolState, force bool) ([]byte, fileSnapshot, 
 	if err != nil {
 		return nil, fileSnapshot{}, nil, false, err
 	}
-	providerID := providerIDFromBlock(state.InstalledBlock)
+	providerID := providerIDFromState(state)
 	text, currentBlock, found, err := extractProviderBlock(string(snapshot.data), providerID)
 	if err != nil {
 		return nil, fileSnapshot{}, nil, false, err

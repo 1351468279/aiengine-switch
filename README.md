@@ -77,12 +77,14 @@ Windows PowerShell：
 | --- | --- |
 | Claude Code | `~/.claude/settings.json` 或 `CLAUDE_CONFIG_DIR`，以及独立凭据 |
 | Claude Desktop | 独立 `AiEngine` 3P inference profile；保留其他 profile |
-| Codex | `~/.codex/config.toml` 或 `CODEX_HOME`，以及独立凭据；不修改 `auth.json` |
+| Codex | `~/.codex/config.toml` 或 `CODEX_HOME`，以及独立凭据；不修改会话数据和 `auth.json` |
 | Hermes | `~/.hermes/config.yaml` 与 `~/.hermes/.env`，支持 `HERMES_HOME` |
 | OpenCode | `~/.config/opencode/opencode.json` 或 `OPENCODE_CONFIG`，以及独立凭据 |
 | Aider | `~/.aider.conf.yml` 与 AiEngine 安装目录内的独立环境文件 |
 
 安装器会在第一次修改前备份原文件，只合并自己管理的字段，并为凭据文件设置仅当前用户可读的权限。卸载时只恢复受管字段；若这些字段在安装后又被用户修改，默认停止并报告冲突。
+
+Codex 的旧会话不会因安装而删除。安装器会尽量沿用已有的合法 provider ID（例如 `OpenAI`），并只读扫描 `CODEX_HOME/sessions` 中的 JSONL 元数据，避免旧版安装器写入 `aiengine` 后导致历史列表暂时不显示。遇到历史会话问题，请先完全退出 Codex，再重新运行最新安装器并执行 `doctor`；不要手动编辑 Codex 数据库。
 
 ## 日常命令
 

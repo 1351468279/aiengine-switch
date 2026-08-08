@@ -38,6 +38,7 @@ type ToolState struct {
 	ConfigPath      string                `json:"config_path"`
 	CredentialPath  string                `json:"credential_path"`
 	Model           string                `json:"model,omitempty"`
+	ProviderID      string                `json:"provider_id,omitempty"`
 	ConfigExisted   bool                  `json:"config_existed"`
 	BackupPath      string                `json:"backup_path,omitempty"`
 	Fields          map[string]FieldState `json:"fields"`

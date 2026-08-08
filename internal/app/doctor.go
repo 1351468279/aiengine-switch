@@ -1,8 +1,10 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -94,7 +96,7 @@ func runDoctor(options commonOptions, version string) error {
 		case "claude":
 			checkClaudeDoctor(report, toolState)
 		case "codex":
-			checkCodexDoctor(report, toolState)
+			checkCodexDoctor(report, toolState, paths)
 		case desktopTool:
 			checkClaudeDesktopDoctor(report, toolState, token)
 		case "hermes", "opencode", "aider":
@@ -161,7 +163,7 @@ func reportFieldsMatchJSON(config map[string]any, fields map[string]FieldState) 
 	return true
 }
 
-func checkCodexDoctor(report *doctorReport, state *ToolState) {
+func checkCodexDoctor(report *doctorReport, state *ToolState, paths Paths) {
 	snapshot, err := snapshotFile(state.ConfigPath)
 	if err != nil || !snapshot.existed {
 		report.fail("Codex 配置不可读: %s", state.ConfigPath)
@@ -180,11 +182,45 @@ func checkCodexDoctor(report *doctorReport, state *ToolState) {
 			matched = false
 		}
 	}
-	providerID := providerIDFromBlock(state.InstalledBlock)
+	providerID := providerIDFromState(state)
 	_, block, found, err := extractProviderBlock(string(snapshot.data), providerID)
 	if err != nil || !found || block != state.InstalledBlock {
 		report.fail("Codex %s provider 配置与安装状态不一致", providerID)
 		matched = false
+	}
+	if currentProvider, ok := parsed["model_provider"].(string); !ok || currentProvider != providerID {
+		report.fail("Codex 当前 model_provider 与已安装 provider 不一致: %s", providerID)
+		matched = false
+	} else {
+		report.ok("Codex provider: %s", providerID)
+	}
+
+	historyPaths := paths
+	if historyPaths.CodexConfig != state.ConfigPath {
+		historyPaths.CodexHome = filepath.Dir(state.ConfigPath)
+		historyPaths.CodexSessions = filepath.Join(filepath.Dir(state.ConfigPath), "sessions")
+		report.warn("当前 CODEX_HOME 与安装状态不一致；正在检查安装状态对应的历史目录")
+	}
+	historyInfo, historyErr := os.Stat(historyPaths.CodexSessions)
+	if errors.Is(historyErr, os.ErrNotExist) {
+		report.ok("Codex 历史会话目录尚未创建: %s", historyPaths.CodexSessions)
+	} else if historyErr != nil {
+		report.warn("Codex 历史会话目录不可读: %s", historyPaths.CodexSessions)
+	} else if !historyInfo.IsDir() {
+		report.warn("Codex 历史会话路径不是目录: %s", historyPaths.CodexSessions)
+	} else {
+		counts, scanErr := codexHistoryProviderCounts(historyPaths)
+		if scanErr != nil {
+			report.warn("扫描 Codex 历史 provider 时遇到不可读文件: %v", scanErr)
+		}
+		providerIDs := sortedCodexProviderIDs(counts)
+		if len(providerIDs) == 0 {
+			report.ok("Codex 历史会话目录: %s（未发现 provider 元数据）", historyPaths.CodexSessions)
+		} else if counts[providerID] == 0 {
+			report.warn("Codex 当前 provider 为 %s，但历史会话使用 [%s]；历史文件未删除，可能暂时不在列表中显示", providerID, strings.Join(providerIDs, ", "))
+		} else {
+			report.ok("Codex 历史会话目录: %s（provider: %s）", historyPaths.CodexSessions, strings.Join(providerIDs, ", "))
+		}
 	}
 	if matched {
 		report.ok("Codex 配置完整: %s", state.ConfigPath)

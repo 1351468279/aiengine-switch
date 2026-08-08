@@ -28,6 +28,12 @@ func TestResolvePathsUsesAiEngineNamesForFreshInstall(t *testing.T) {
 	if paths.Binary != filepath.Join(home, ".aiengine-setup", "bin", "aiengine-setup") {
 		t.Fatalf("Binary = %q", paths.Binary)
 	}
+	if paths.CodexHome != filepath.Join(home, ".codex") {
+		t.Fatalf("CodexHome = %q", paths.CodexHome)
+	}
+	if paths.CodexSessions != filepath.Join(home, ".codex", "sessions") {
+		t.Fatalf("CodexSessions = %q", paths.CodexSessions)
+	}
 	if paths.DesktopProfile != "" {
 		t.Fatalf("Linux should not resolve a Claude Desktop profile: %q", paths.DesktopProfile)
 	}

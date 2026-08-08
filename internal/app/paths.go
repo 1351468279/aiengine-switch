@@ -27,7 +27,9 @@ type Paths struct {
 	DesktopThreePConfig string
 	DesktopProfile      string
 	DesktopMeta         string
+	CodexHome           string
 	CodexConfig         string
+	CodexSessions       string
 	CodexAuth           string
 	HermesConfig        string
 	HermesEnv           string
@@ -146,7 +148,9 @@ func ResolvePaths() (Paths, error) {
 		DesktopThreePConfig: desktopThreePConfig,
 		DesktopProfile:      desktopProfile,
 		DesktopMeta:         desktopMeta,
+		CodexHome:           codexDir,
 		CodexConfig:         filepath.Join(codexDir, "config.toml"),
+		CodexSessions:       filepath.Join(codexDir, "sessions"),
 		CodexAuth:           filepath.Join(codexDir, "auth.json"),
 		HermesConfig:        filepath.Join(hermesDir, "config.yaml"),
 		HermesEnv:           filepath.Join(hermesDir, ".env"),

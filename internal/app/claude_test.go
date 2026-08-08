@@ -22,7 +22,9 @@ func testPaths(t *testing.T) Paths {
 		State:            filepath.Join(root, ".aiengine-setup", "state.json"),
 		BackupDir:        filepath.Join(root, ".aiengine-setup", "backups"),
 		ClaudeSettings:   filepath.Join(root, ".claude", "settings.json"),
+		CodexHome:        filepath.Join(root, ".codex"),
 		CodexConfig:      filepath.Join(root, ".codex", "config.toml"),
+		CodexSessions:    filepath.Join(root, ".codex", "sessions"),
 		CodexAuth:        filepath.Join(root, ".codex", "auth.json"),
 	}
 }
